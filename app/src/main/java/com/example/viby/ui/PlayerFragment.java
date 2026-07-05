@@ -8,23 +8,29 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
+import androidx.media3.common.Timeline;
 import androidx.media3.session.MediaController;
 
 import com.bumptech.glide.Glide;
 import com.example.viby.R;
+import com.example.viby.data.Track;
+import com.example.viby.ui.widget.WaveformView;
 import com.example.viby.util.Formats;
+import com.example.viby.util.WaveformExtractor;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
-/** Главная страница: обложка, перемотка, prev/play/next, shuffle/repeat. */
+import java.util.List;
+
+/** Главная страница: обложка, волна перемотки (как в AIMP), prev/play/next, shuffle/repeat. */
 public class PlayerFragment extends Fragment {
 
     private PlayerViewModel viewModel;
@@ -33,7 +39,7 @@ public class PlayerFragment extends Fragment {
     private ImageView coverImage;
     private TextView trackTitle;
     private TextView trackArtist;
-    private SeekBar seekBar;
+    private WaveformView waveform;
     private TextView positionText;
     private TextView durationText;
     private FloatingActionButton playButton;
@@ -43,6 +49,8 @@ public class PlayerFragment extends Fragment {
 
     private final Handler progressHandler = new Handler(Looper.getMainLooper());
     private boolean userSeeking;
+    @Nullable
+    private String currentWaveformPath;
 
     private final Runnable progressTick = new Runnable() {
         @Override
@@ -79,14 +87,13 @@ public class PlayerFragment extends Fragment {
         }
 
         @Override
-        public void onMediaItemTransition(@Nullable androidx.media3.common.MediaItem mediaItem,
-                                          int reason) {
+        public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
             updateCounter();
+            loadWaveform();
         }
 
         @Override
-        public void onTimelineChanged(@NonNull androidx.media3.common.Timeline timeline,
-                                      int reason) {
+        public void onTimelineChanged(@NonNull Timeline timeline, int reason) {
             updateCounter();
         }
     };
@@ -105,7 +112,7 @@ public class PlayerFragment extends Fragment {
         coverImage = view.findViewById(R.id.coverImage);
         trackTitle = view.findViewById(R.id.trackTitle);
         trackArtist = view.findViewById(R.id.trackArtist);
-        seekBar = view.findViewById(R.id.seekBar);
+        waveform = view.findViewById(R.id.waveform);
         positionText = view.findViewById(R.id.positionText);
         durationText = view.findViewById(R.id.durationText);
         playButton = view.findViewById(R.id.playButton);
@@ -159,24 +166,21 @@ public class PlayerFragment extends Fragment {
             }
         });
 
-        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        waveform.setListener(new WaveformView.Listener() {
             @Override
-            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                if (fromUser) {
-                    positionText.setText(Formats.duration(progress));
+            public void onSeekPreview(float fraction) {
+                userSeeking = true;
+                if (controller != null && controller.getDuration() > 0) {
+                    positionText.setText(Formats.duration(
+                            (long) (fraction * controller.getDuration())));
                 }
             }
 
             @Override
-            public void onStartTrackingTouch(SeekBar bar) {
-                userSeeking = true;
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar bar) {
+            public void onSeek(float fraction) {
                 userSeeking = false;
-                if (controller != null) {
-                    controller.seekTo(bar.getProgress());
+                if (controller != null && controller.getDuration() > 0) {
+                    controller.seekTo((long) (fraction * controller.getDuration()));
                 }
             }
         });
@@ -191,6 +195,9 @@ public class PlayerFragment extends Fragment {
             }
             updateAll();
         });
+
+        // волна зависит от списка треков (путь к файлу ищем по mediaId)
+        viewModel.tracks.observe(getViewLifecycleOwner(), tracks -> loadWaveform());
     }
 
     @Override
@@ -220,6 +227,44 @@ public class PlayerFragment extends Fragment {
         updateModeButtons();
         updateProgress();
         updateCounter();
+        loadWaveform();
+    }
+
+    private void loadWaveform() {
+        if (waveform == null) {
+            return;
+        }
+        if (controller == null || controller.getCurrentMediaItem() == null) {
+            currentWaveformPath = null;
+            waveform.setWaveform(null);
+            return;
+        }
+        String mediaId = controller.getCurrentMediaItem().mediaId;
+        String path = null;
+        List<Track> tracks = viewModel.tracks.getValue();
+        if (tracks != null) {
+            for (Track track : tracks) {
+                if (String.valueOf(track.id).equals(mediaId)) {
+                    path = track.filePath;
+                    break;
+                }
+            }
+        }
+        if (path == null) {
+            currentWaveformPath = null;
+            waveform.setWaveform(null);
+            return;
+        }
+        if (path.equals(currentWaveformPath)) {
+            return;
+        }
+        currentWaveformPath = path;
+        waveform.setWaveform(null);
+        WaveformExtractor.load(requireContext(), path, (donePath, amps) -> {
+            if (donePath.equals(currentWaveformPath) && waveform != null) {
+                waveform.setWaveform(amps);
+            }
+        });
     }
 
     private void updateCounter() {
@@ -286,12 +331,10 @@ public class PlayerFragment extends Fragment {
         long duration = Math.max(0, controller.getDuration());
         long position = Math.max(0, controller.getCurrentPosition());
         if (duration > 0) {
-            seekBar.setMax((int) duration);
-            seekBar.setProgress((int) Math.min(position, duration));
+            waveform.setProgress(position / (float) duration);
             durationText.setText(Formats.duration(duration));
         } else {
-            seekBar.setMax(100);
-            seekBar.setProgress(0);
+            waveform.setProgress(0f);
             durationText.setText(Formats.duration(0));
         }
         positionText.setText(Formats.duration(position));

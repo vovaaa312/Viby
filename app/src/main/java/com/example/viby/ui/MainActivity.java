@@ -91,6 +91,11 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(this, DownloadActivity.class));
         });
 
+        findViewById(R.id.drawerEffects).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, EqualizerActivity.class));
+        });
+
         RecyclerView playlistsList = findViewById(R.id.playlistsList);
         PlaylistsAdapter adapter = new PlaylistsAdapter(name -> {
             drawerLayout.closeDrawers();
@@ -225,33 +230,129 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** Удалить трек: файл + запись в БД + из очереди плеера. */
+    /** Добавить треки в конец очереди воспроизведения (без изменения БД). */
+    void addToQueue(List<Track> tracks) {
+        MediaController controller = viewModel.controller.getValue();
+        if (controller == null || tracks.isEmpty()) {
+            return;
+        }
+        List<MediaItem> items = new ArrayList<>();
+        for (Track track : tracks) {
+            items.add(toMediaItem(track));
+        }
+        controller.addMediaItems(items);
+        Toast.makeText(this, R.string.added_to_queue, Toast.LENGTH_SHORT).show();
+    }
+
+    /** Вставить треки сразу после проигрываемого. */
+    void insertAfterCurrent(List<Track> tracks) {
+        MediaController controller = viewModel.controller.getValue();
+        if (controller == null || tracks.isEmpty()) {
+            return;
+        }
+        List<MediaItem> items = new ArrayList<>();
+        for (Track track : tracks) {
+            items.add(toMediaItem(track));
+        }
+        int index = controller.getMediaItemCount() == 0
+                ? 0 : controller.getCurrentMediaItemIndex() + 1;
+        controller.addMediaItems(index, items);
+        Toast.makeText(this, R.string.added_to_queue, Toast.LENGTH_SHORT).show();
+    }
+
+    /** Переместить треки в другой плейлист: файл переезжает в папку плейлиста. */
+    void moveTracksToPlaylist(List<Track> tracks, String targetPlaylist) {
+        String target = com.example.viby.util.StorageHelper.sanitize(targetPlaylist);
+        removeFromQueue(tracks);
+        VibyDatabase.dbExecutor.execute(() -> {
+            var dao = VibyDatabase.get(this).trackDao();
+            int moved = 0;
+            for (Track track : tracks) {
+                if (target.equals(track.playlistName)) {
+                    continue;
+                }
+                File src = new File(track.filePath);
+                File destDir = com.example.viby.util.StorageHelper.playlistDir(this, target);
+                File dest = new File(destDir, src.getName());
+                if (dest.exists()) {
+                    String name = src.getName();
+                    int dot = name.lastIndexOf('.');
+                    String base = dot > 0 ? name.substring(0, dot) : name;
+                    String ext = dot > 0 ? name.substring(dot) : "";
+                    dest = new File(destDir, base + " [" + track.id + "]" + ext);
+                }
+                if (src.exists() && !src.renameTo(dest)) {
+                    continue; // файл не переехал — запись не трогаем
+                }
+                track.playlistName = target;
+                if (src.exists() || dest.exists()) {
+                    track.filePath = dest.getAbsolutePath();
+                }
+                track.position = dao.nextPosition(target);
+                dao.update(track);
+                moved++;
+            }
+            int total = moved;
+            runOnUiThread(() -> Toast.makeText(this,
+                    getString(R.string.tracks_moved, total), Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    /** Убрать записи из плейлиста (файлы остаются на диске). */
+    void removeTracksFromPlaylist(List<Track> tracks) {
+        removeFromQueue(tracks);
+        VibyDatabase.dbExecutor.execute(() -> {
+            var dao = VibyDatabase.get(this).trackDao();
+            for (Track track : tracks) {
+                dao.delete(track);
+            }
+            runOnUiThread(() -> Toast.makeText(this,
+                    getString(R.string.tracks_deleted, tracks.size()),
+                    Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    /** Удалить треки с устройства: файлы + записи + из очереди. */
+    void deleteTracksFromDevice(List<Track> tracks) {
+        removeFromQueue(tracks);
+        VibyDatabase.dbExecutor.execute(() -> {
+            var dao = VibyDatabase.get(this).trackDao();
+            for (Track track : tracks) {
+                //noinspection ResultOfMethodCallIgnored
+                new File(track.filePath).delete();
+                dao.delete(track);
+            }
+            runOnUiThread(() -> Toast.makeText(this,
+                    getString(R.string.tracks_deleted, tracks.size()),
+                    Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    private void removeFromQueue(List<Track> tracks) {
+        MediaController controller = viewModel.controller.getValue();
+        if (controller == null) {
+            return;
+        }
+        java.util.HashSet<String> ids = new java.util.HashSet<>();
+        for (Track track : tracks) {
+            ids.add(String.valueOf(track.id));
+        }
+        for (int i = controller.getMediaItemCount() - 1; i >= 0; i--) {
+            if (ids.contains(controller.getMediaItemAt(i).mediaId)) {
+                controller.removeMediaItem(i);
+            }
+        }
+    }
+
+    /** Удалить один трек: файл + запись в БД + из очереди плеера. */
     void confirmDeleteTrack(Track track) {
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.delete_track_title)
                 .setMessage(getString(R.string.delete_track_message, track.title))
-                .setPositiveButton(R.string.btn_delete, (d, w) -> deleteTrack(track))
+                .setPositiveButton(R.string.btn_delete,
+                        (d, w) -> deleteTracksFromDevice(java.util.Collections.singletonList(track)))
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
-    }
-
-    private void deleteTrack(Track track) {
-        MediaController controller = viewModel.controller.getValue();
-        if (controller != null) {
-            String mediaId = String.valueOf(track.id);
-            for (int i = 0; i < controller.getMediaItemCount(); i++) {
-                if (mediaId.equals(controller.getMediaItemAt(i).mediaId)) {
-                    controller.removeMediaItem(i);
-                    break;
-                }
-            }
-        }
-        VibyDatabase.dbExecutor.execute(() -> {
-            //noinspection ResultOfMethodCallIgnored
-            new File(track.filePath).delete();
-            VibyDatabase.get(this).trackDao().delete(track);
-        });
-        Toast.makeText(this, R.string.track_deleted, Toast.LENGTH_SHORT).show();
     }
 
     private void requestNotificationPermissionIfNeeded() {

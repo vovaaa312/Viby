@@ -6,6 +6,33 @@
     <!-- Drawer -->
     <string name="menu_download">Скачать трек/плейлист</string>
     <string name="menu_update_ytdlp">Обновить yt-dlp</string>
+    <string name="menu_effects">Звуковые эффекты</string>
+
+    <!-- Equalizer -->
+    <string name="eq_title">Эквалайзер</string>
+    <string name="eq_enabled">Включён</string>
+    <string name="eq_preset_button">Загрузить преднастройку…</string>
+    <string name="eq_unavailable">Эквалайзер недоступен: плеер ещё не запущен или устройство его не поддерживает</string>
+    <string name="eq_custom">Свой</string>
+
+    <!-- Context menu / multi-select -->
+    <string name="ctx_play">Воспроизвести</string>
+    <string name="ctx_add_queue">Добавить в очередь</string>
+    <string name="ctx_insert_after_current">Вставить после проигрываемого</string>
+    <string name="ctx_move_to_playlist">Отправить в плейлист…</string>
+    <string name="ctx_remove_from_playlist">Удалить из плейлиста</string>
+    <string name="ctx_delete_from_device">Удалить с устройства</string>
+    <string name="ctx_select">Выделить</string>
+    <string name="selection_title">Выбрано: %1$d</string>
+    <string name="select_all">Выбрать всё</string>
+    <string name="move_dialog_title">В какой плейлист?</string>
+    <string name="new_playlist_hint">Или новый плейлист</string>
+    <string name="tracks_moved">Перемещено: %1$d</string>
+    <string name="tracks_deleted">Удалено: %1$d</string>
+    <string name="delete_selected_title">Удалить выбранные треки?</string>
+    <string name="delete_selected_message">%1$d трек(ов) будут удалены с устройства вместе с файлами.</string>
+    <string name="remove_selected_message">%1$d трек(ов) будут убраны из плейлиста (файлы останутся).</string>
+    <string name="added_to_queue">Добавлено в очередь</string>
     <string name="menu_playlists_header">Плейлисты</string>
     <string name="ytdlp_updating">Обновляю yt-dlp…</string>
     <string name="ytdlp_updated">yt-dlp обновлён</string>

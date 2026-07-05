@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Тема одна и та же днём и ночью (AIMP-стиль всегда тёмный). -->
+    <!-- Тёмная тема (ночь), AIMP-стиль. -->
     <style name="Theme.Viby" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/viby_accent</item>
         <item name="colorOnPrimary">@color/viby_on_accent</item>

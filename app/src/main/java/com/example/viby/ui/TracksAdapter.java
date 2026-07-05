@@ -3,6 +3,7 @@ package com.example.viby.ui;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -15,7 +16,9 @@ import com.example.viby.data.Track;
 import com.example.viby.util.Formats;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
 
@@ -23,10 +26,15 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
         void onTrackClick(Track track, int position);
 
         void onTrackLongClick(Track track);
+
+        /** Вызывается при каждом изменении выбора в режиме мультивыбора. */
+        void onSelectionChanged(int selectedCount);
     }
 
     private final Listener listener;
     private final List<Track> tracks = new ArrayList<>();
+    private final Set<Long> selectedIds = new HashSet<>();
+    private boolean selectionMode;
     private long currentTrackId = -1;
 
     public TracksAdapter(Listener listener) {
@@ -36,6 +44,15 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
     public void submit(List<Track> newTracks) {
         tracks.clear();
         tracks.addAll(newTracks);
+        if (selectionMode) {
+            // выкидываем из выбора треки, которых больше нет
+            Set<Long> alive = new HashSet<>();
+            for (Track track : newTracks) {
+                alive.add(track.id);
+            }
+            selectedIds.retainAll(alive);
+            listener.onSelectionChanged(selectedIds.size());
+        }
         notifyDataSetChanged();
     }
 
@@ -46,6 +63,59 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             notifyDataSetChanged();
         }
     }
+
+    // ------------------------------------------------------- multi-select
+
+    public boolean isSelectionMode() {
+        return selectionMode;
+    }
+
+    public void enterSelectionMode(Track initial) {
+        selectionMode = true;
+        selectedIds.clear();
+        if (initial != null) {
+            selectedIds.add(initial.id);
+        }
+        listener.onSelectionChanged(selectedIds.size());
+        notifyDataSetChanged();
+    }
+
+    public void exitSelectionMode() {
+        selectionMode = false;
+        selectedIds.clear();
+        notifyDataSetChanged();
+    }
+
+    public void toggleSelection(Track track) {
+        if (!selectedIds.remove(track.id)) {
+            selectedIds.add(track.id);
+        }
+        listener.onSelectionChanged(selectedIds.size());
+        notifyDataSetChanged();
+    }
+
+    public void selectAll(boolean select) {
+        selectedIds.clear();
+        if (select) {
+            for (Track track : tracks) {
+                selectedIds.add(track.id);
+            }
+        }
+        listener.onSelectionChanged(selectedIds.size());
+        notifyDataSetChanged();
+    }
+
+    public List<Track> getSelectedTracks() {
+        List<Track> selected = new ArrayList<>();
+        for (Track track : tracks) {
+            if (selectedIds.contains(track.id)) {
+                selected.add(track);
+            }
+        }
+        return selected;
+    }
+
+    // ---------------------------------------------------------- adapter
 
     @NonNull
     @Override
@@ -66,6 +136,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
     }
 
     class Holder extends RecyclerView.ViewHolder {
+        private final CheckBox check;
         private final ImageView thumb;
         private final TextView title;
         private final TextView artist;
@@ -73,6 +144,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
 
         Holder(@NonNull View itemView) {
             super(itemView);
+            check = itemView.findViewById(R.id.trackCheck);
             thumb = itemView.findViewById(R.id.trackThumb);
             title = itemView.findViewById(R.id.trackItemTitle);
             artist = itemView.findViewById(R.id.trackItemArtist);
@@ -84,6 +156,9 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             artist.setText(track.uploader != null ? track.uploader
                     : itemView.getContext().getString(R.string.unknown_artist));
             duration.setText(Formats.duration(track.durationMs));
+
+            check.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
+            check.setChecked(selectedIds.contains(track.id));
 
             boolean isCurrent = track.id == currentTrackId;
             title.setTextColor(isCurrent
@@ -99,9 +174,19 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
                     .centerCrop()
                     .into(thumb);
 
-            itemView.setOnClickListener(v -> listener.onTrackClick(track, position));
+            itemView.setOnClickListener(v -> {
+                if (selectionMode) {
+                    toggleSelection(track);
+                } else {
+                    listener.onTrackClick(track, position);
+                }
+            });
             itemView.setOnLongClickListener(v -> {
-                listener.onTrackLongClick(track);
+                if (selectionMode) {
+                    toggleSelection(track);
+                } else {
+                    listener.onTrackLongClick(track);
+                }
                 return true;
             });
         }

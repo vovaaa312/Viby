@@ -28,6 +28,12 @@ public class PlaybackService extends MediaSessionService {
                 .setHandleAudioBecomingNoisy(true)
                 .build();
 
+        // своя аудиосессия, чтобы повесить на неё системный эквалайзер
+        int audioSessionId = getSystemService(android.media.AudioManager.class)
+                .generateAudioSessionId();
+        player.setAudioSessionId(audioSessionId);
+        EqFx.init(this, audioSessionId);
+
         PendingIntent sessionActivity = PendingIntent.getActivity(
                 this, 0,
                 new Intent(this, MainActivity.class),
@@ -55,6 +61,7 @@ public class PlaybackService extends MediaSessionService {
 
     @Override
     public void onDestroy() {
+        EqFx.release();
         if (mediaSession != null) {
             mediaSession.getPlayer().release();
             mediaSession.release();

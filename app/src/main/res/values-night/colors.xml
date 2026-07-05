@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Тёмная тема (ночь) -->
+    <color name="viby_bg">#FF1E1E20</color>
+    <color name="viby_surface">#FF2A2A2D</color>
+    <color name="viby_surface_high">#FF353538</color>
+    <color name="viby_wave">#FF4C4C50</color>
+    <color name="viby_text">#FFEDEDED</color>
+    <color name="viby_text_secondary">#FF9A9A9E</color>
+</resources>

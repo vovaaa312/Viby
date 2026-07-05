@@ -55,6 +55,18 @@
             android:textAppearance="?attr/textAppearanceBodyLarge"
             app:drawableStartCompat="@drawable/ic_download" />
 
+        <TextView
+            android:id="@+id/drawerEffects"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:drawablePadding="16dp"
+            android:gravity="center_vertical"
+            android:padding="16dp"
+            android:text="@string/menu_effects"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            app:drawableStartCompat="@drawable/ic_equalizer" />
+
         <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
