@@ -44,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private PlayerViewModel viewModel;
     private DrawerLayout drawerLayout;
     private MaterialToolbar toolbar;
+    private ViewPager2 pager;
 
     private ListenableFuture<MediaController> controllerFuture;
     /** Плейлист, который сейчас загружен в очередь плеера. */
@@ -62,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
         toolbar = findViewById(R.id.toolbar);
         toolbar.setNavigationOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
 
-        ViewPager2 pager = findViewById(R.id.pager);
+        pager = findViewById(R.id.pager);
         pager.setAdapter(new FragmentStateAdapter(this) {
             @NonNull
             @Override
@@ -205,6 +206,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ------------------------------------------------------------- for fragments
+
+    /** Переключиться на страницу плеера (тап по мини-плееру). */
+    void showPlayerPage() {
+        pager.setCurrentItem(0, true);
+    }
 
     /** Играть трек из очереди (тап в списке). */
     void playTrack(Track track, int position) {

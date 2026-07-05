@@ -2,48 +2,61 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:padding="24dp">
+    android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/coverImage"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/coverCard"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        android:contentDescription="@string/cover_desc"
-        android:scaleType="centerCrop"
-        android:src="@drawable/ic_music_note"
+        android:layout_marginHorizontal="28dp"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="@color/viby_surface_high"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="0dp"
         app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintWidth_max="360dp" />
+        app:layout_constraintWidth_max="340dp">
+
+        <ImageView
+            android:id="@+id/coverImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/cover_desc"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_music_note" />
+    </com.google.android.material.card.MaterialCardView>
 
     <TextView
         android:id="@+id/trackTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="20dp"
         android:ellipsize="marquee"
         android:gravity="center"
         android:marqueeRepeatLimit="marquee_forever"
         android:singleLine="true"
         android:text="@string/no_track"
-        android:textAppearance="?attr/textAppearanceHeadlineSmall"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textColor="@color/viby_text"
+        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/coverImage" />
+        app:layout_constraintTop_toBottomOf="@id/coverCard" />
 
     <TextView
         android:id="@+id/trackArtist"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
         android:layout_marginTop="4dp"
         android:ellipsize="end"
         android:gravity="center"
         android:singleLine="true"
         android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:textColor="?android:attr/textColorSecondary"
+        android:textColor="@color/viby_text_secondary"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/trackTitle" />
@@ -52,93 +65,116 @@
         android:id="@+id/seekBar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="2dp"
+        app:layout_constraintBottom_toTopOf="@id/positionText"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/trackArtist" />
+        app:layout_constraintStart_toStartOf="parent" />
 
     <TextView
         android:id="@+id/positionText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
+        android:layout_marginStart="28dp"
+        android:layout_marginBottom="10dp"
         android:text="0:00"
         android:textAppearance="?attr/textAppearanceLabelSmall"
-        app:layout_constraintStart_toStartOf="@id/seekBar"
-        app:layout_constraintTop_toBottomOf="@id/seekBar" />
+        android:textColor="@color/viby_text_secondary"
+        app:layout_constraintBottom_toTopOf="@id/controlPanel"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <TextView
         android:id="@+id/durationText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="4dp"
+        android:layout_marginEnd="28dp"
         android:text="0:00"
         android:textAppearance="?attr/textAppearanceLabelSmall"
-        app:layout_constraintEnd_toEndOf="@id/seekBar"
-        app:layout_constraintTop_toBottomOf="@id/seekBar" />
+        android:textColor="@color/viby_text_secondary"
+        app:layout_constraintBaseline_toBaselineOf="@id/positionText"
+        app:layout_constraintEnd_toEndOf="parent" />
 
-    <ImageButton
-        android:id="@+id/shuffleButton"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/btn_shuffle"
-        android:src="@drawable/ic_shuffle"
-        app:layout_constraintBottom_toBottomOf="@id/playButton"
-        app:layout_constraintEnd_toStartOf="@id/prevButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/playButton" />
-
-    <ImageButton
-        android:id="@+id/prevButton"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/btn_prev"
-        android:scaleType="fitCenter"
-        android:padding="8dp"
-        android:src="@drawable/ic_skip_previous"
-        app:layout_constraintBottom_toBottomOf="@id/playButton"
-        app:layout_constraintEnd_toStartOf="@id/playButton"
-        app:layout_constraintStart_toEndOf="@id/shuffleButton"
-        app:layout_constraintTop_toTopOf="@id/playButton" />
-
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/playButton"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/controlPanel"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:contentDescription="@string/btn_play_pause"
-        android:src="@drawable/ic_play"
-        app:fabSize="normal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/positionText" />
+        android:background="@drawable/bg_control_panel"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingTop="10dp"
+        android:paddingBottom="14dp"
+        app:layout_constraintBottom_toBottomOf="parent">
 
-    <ImageButton
-        android:id="@+id/nextButton"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/btn_next"
-        android:scaleType="fitCenter"
-        android:padding="8dp"
-        android:src="@drawable/ic_skip_next"
-        app:layout_constraintBottom_toBottomOf="@id/playButton"
-        app:layout_constraintEnd_toStartOf="@id/repeatButton"
-        app:layout_constraintStart_toEndOf="@id/playButton"
-        app:layout_constraintTop_toTopOf="@id/playButton" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-    <ImageButton
-        android:id="@+id/repeatButton"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/btn_repeat"
-        android:src="@drawable/ic_repeat"
-        app:layout_constraintBottom_toBottomOf="@id/playButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/nextButton"
-        app:layout_constraintTop_toTopOf="@id/playButton" />
+            <ImageButton
+                android:id="@+id/shuffleButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_shuffle"
+                android:src="@drawable/ic_shuffle"
+                app:tint="@color/white" />
+
+            <ImageButton
+                android:id="@+id/prevButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_prev"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_skip_previous"
+                app:tint="@color/white" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/playButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:contentDescription="@string/btn_play_pause"
+                android:src="@drawable/ic_play"
+                app:backgroundTint="@color/white"
+                app:elevation="0dp"
+                app:fabSize="normal"
+                app:tint="@color/viby_accent" />
+
+            <ImageButton
+                android:id="@+id/nextButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_next"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_skip_next"
+                app:tint="@color/white" />
+
+            <ImageButton
+                android:id="@+id/repeatButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_repeat"
+                android:src="@drawable/ic_repeat"
+                app:tint="@color/white" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/trackCounter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textColor="@color/viby_on_accent"
+            tools:text="1/7"
+            xmlns:tools="http://schemas.android.com/tools" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

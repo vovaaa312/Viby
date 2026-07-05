@@ -1,6 +1,21 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme (dark). -->
-    <style name="Theme.Viby" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
+    <!-- Тема одна и та же днём и ночью (AIMP-стиль всегда тёмный). -->
+    <style name="Theme.Viby" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/viby_accent</item>
+        <item name="colorOnPrimary">@color/viby_on_accent</item>
+        <item name="colorPrimaryContainer">@color/viby_accent_dark</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+        <item name="colorSecondary">@color/viby_accent</item>
+        <item name="colorOnSecondary">@color/viby_on_accent</item>
+        <item name="colorSurface">@color/viby_surface</item>
+        <item name="android:windowBackground">@color/viby_bg</item>
+        <item name="android:colorBackground">@color/viby_bg</item>
+        <item name="android:textColorPrimary">@color/viby_text</item>
+        <item name="android:textColorSecondary">@color/viby_text_secondary</item>
+        <item name="android:colorPrimaryDark">@color/viby_bg</item>
+        <item name="colorPrimaryDark">@color/viby_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
     </style>
 </resources>

@@ -39,6 +39,7 @@ public class PlayerFragment extends Fragment {
     private FloatingActionButton playButton;
     private ImageButton shuffleButton;
     private ImageButton repeatButton;
+    private TextView trackCounter;
 
     private final Handler progressHandler = new Handler(Looper.getMainLooper());
     private boolean userSeeking;
@@ -76,6 +77,18 @@ public class PlayerFragment extends Fragment {
         public void onRepeatModeChanged(int repeatMode) {
             updateModeButtons();
         }
+
+        @Override
+        public void onMediaItemTransition(@Nullable androidx.media3.common.MediaItem mediaItem,
+                                          int reason) {
+            updateCounter();
+        }
+
+        @Override
+        public void onTimelineChanged(@NonNull androidx.media3.common.Timeline timeline,
+                                      int reason) {
+            updateCounter();
+        }
     };
 
     @Nullable
@@ -98,6 +111,7 @@ public class PlayerFragment extends Fragment {
         playButton = view.findViewById(R.id.playButton);
         shuffleButton = view.findViewById(R.id.shuffleButton);
         repeatButton = view.findViewById(R.id.repeatButton);
+        trackCounter = view.findViewById(R.id.trackCounter);
         ImageButton prevButton = view.findViewById(R.id.prevButton);
         ImageButton nextButton = view.findViewById(R.id.nextButton);
 
@@ -205,6 +219,16 @@ public class PlayerFragment extends Fragment {
         updatePlayButton();
         updateModeButtons();
         updateProgress();
+        updateCounter();
+    }
+
+    private void updateCounter() {
+        if (controller == null || controller.getMediaItemCount() == 0) {
+            trackCounter.setText("");
+            return;
+        }
+        trackCounter.setText((controller.getCurrentMediaItemIndex() + 1)
+                + "/" + controller.getMediaItemCount());
     }
 
     private void updateMetadata() {

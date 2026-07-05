@@ -30,7 +30,9 @@ public class DownloadActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_download);
-        setTitle(R.string.download_title);
+        com.google.android.material.appbar.MaterialToolbar toolbar =
+                findViewById(R.id.downloadToolbar);
+        toolbar.setNavigationOnClickListener(v -> finish());
 
         urlInputLayout = findViewById(R.id.urlInputLayout);
         urlInput = findViewById(R.id.urlInput);
