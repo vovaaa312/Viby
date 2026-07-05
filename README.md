@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="viby_logo.png" width="128" alt="Viby logo" />
-</p>
 
 # Viby
 
