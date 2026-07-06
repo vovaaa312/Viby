@@ -44,6 +44,8 @@ public class VibyApp extends Application {
         super.onCreate();
         createNotificationChannels();
         background.execute(this::initEngine);
+        // недокачанное с прошлого запуска продолжаем качать
+        com.example.viby.download.DownloadService.restorePending(this);
     }
 
     public LiveData<EngineState> getEngineState() {

@@ -35,6 +35,8 @@ public class DownloadJob {
     public volatile String error;
     public volatile boolean cancelRequested;
     public volatile boolean pauseRequested;
+    /** id строки в pending_downloads (0 — ещё не сохранено). */
+    public volatile long pendingId;
 
     public DownloadJob(String url, String playlistName, boolean isPlaylist) {
         this.url = url;

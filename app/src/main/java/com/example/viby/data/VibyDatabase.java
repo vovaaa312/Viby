@@ -12,7 +12,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {Track.class, PlaylistSource.class}, version = 2, exportSchema = false)
+@Database(entities = {Track.class, PlaylistSource.class, PendingDownload.class},
+        version = 3, exportSchema = false)
 public abstract class VibyDatabase extends RoomDatabase {
 
     private static volatile VibyDatabase instance;
@@ -23,6 +24,8 @@ public abstract class VibyDatabase extends RoomDatabase {
     public abstract TrackDao trackDao();
 
     public abstract PlaylistSourceDao playlistSourceDao();
+
+    public abstract PendingDownloadDao pendingDownloadDao();
 
     private static final Migration MIGRATION_1_2 = new Migration(1, 2) {
         @Override
@@ -35,6 +38,18 @@ public abstract class VibyDatabase extends RoomDatabase {
         }
     };
 
+    private static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `pending_downloads` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`url` TEXT NOT NULL, "
+                    + "`playlistName` TEXT, "
+                    + "`isPlaylist` INTEGER NOT NULL, "
+                    + "`createdAt` INTEGER NOT NULL)");
+        }
+    };
+
     public static VibyDatabase get(Context context) {
         if (instance == null) {
             synchronized (VibyDatabase.class) {
@@ -43,7 +58,7 @@ public abstract class VibyDatabase extends RoomDatabase {
                                     context.getApplicationContext(),
                                     VibyDatabase.class,
                                     "viby.db")
-                            .addMigrations(MIGRATION_1_2)
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                             .build();
                 }
             }
