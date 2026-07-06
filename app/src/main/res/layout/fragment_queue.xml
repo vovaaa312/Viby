@@ -80,6 +80,16 @@
             android:textAppearance="?attr/textAppearanceBodyLarge"
             android:textColor="@color/viby_text_secondary"
             android:visibility="gone" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/refreshPlaylist"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="16dp"
+            android:contentDescription="@string/refresh_playlist"
+            android:src="@drawable/ic_update"
+            app:fabSize="mini" />
     </FrameLayout>
 
     <!-- Мини-плеер внизу списка, как в AIMP -->

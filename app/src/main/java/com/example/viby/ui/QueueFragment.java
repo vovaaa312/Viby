@@ -115,6 +115,8 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         });
         selectionClose.setOnClickListener(v -> exitSelection());
 
+        view.findViewById(R.id.refreshPlaylist).setOnClickListener(v -> refreshPlaylist());
+
         backCallback = new OnBackPressedCallback(false) {
             @Override
             public void handleOnBackPressed() {
@@ -241,6 +243,36 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         selectAllCheck.setChecked(selectedCount > 0
                 && selectedCount == adapter.getItemCount());
         updatingSelectAll = false;
+    }
+
+    /**
+     * «Обновить плейлист»: заново читаем YouTube-плейлист, из которого он был
+     * скачан, и докачиваем только новые треки (уже скачанные пропускаются).
+     */
+    private void refreshPlaylist() {
+        String playlist = viewModel.getActivePlaylistName();
+        if (playlist == null) {
+            return;
+        }
+        android.content.Context appContext = requireContext().getApplicationContext();
+        com.example.viby.data.VibyDatabase.dbExecutor.execute(() -> {
+            com.example.viby.data.PlaylistSource source =
+                    com.example.viby.data.VibyDatabase.get(appContext)
+                            .playlistSourceDao().getSync(playlist);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (source == null) {
+                    android.widget.Toast.makeText(appContext,
+                            R.string.refresh_no_source,
+                            android.widget.Toast.LENGTH_LONG).show();
+                } else {
+                    com.example.viby.download.DownloadService.enqueue(
+                            appContext, source.sourceUrl, playlist, true);
+                    android.widget.Toast.makeText(appContext,
+                            R.string.refresh_started,
+                            android.widget.Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
     }
 
     private void playFromList(Track track) {

@@ -1,35 +1,40 @@
 package com.example.viby.ui;
 
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.viby.R;
 import com.example.viby.playback.EqFx;
-import com.example.viby.playback.EqPresets;
-import com.example.viby.ui.widget.VerticalSeekBar;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
+import java.util.List;
 import java.util.Locale;
 
-/** Звуковые эффекты: системный эквалайзер с пресетами в духе AIMP. */
+/**
+ * Звуковые эффекты: 10-полосный эквалайзер как в AIMP с горизонтальными
+ * ползунками, встроенными и пользовательскими пресетами.
+ */
 public class EqualizerActivity extends AppCompatActivity {
 
-    private LinearLayout bandsContainer;
+    /** Ползунок: 0..300 → -15.0..+15.0 дБ (шаг 0.1). */
+    private static final int SLIDER_MAX = (int) (EqFx.MAX_GAIN_DB * 2 * 10);
+
     private Button presetButton;
     private TextView[] valueLabels;
-    private VerticalSeekBar[] sliders;
-    private short minLevel;
-    private short maxLevel;
+    private SeekBar[] sliders;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -39,16 +44,17 @@ public class EqualizerActivity extends AppCompatActivity {
         MaterialToolbar toolbar = findViewById(R.id.eqToolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
 
-        bandsContainer = findViewById(R.id.bandsContainer);
+        LinearLayout bandsContainer = findViewById(R.id.bandsContainer);
         presetButton = findViewById(R.id.presetButton);
+        Button savePresetButton = findViewById(R.id.savePresetButton);
         MaterialSwitch eqSwitch = findViewById(R.id.eqSwitch);
         TextView unavailable = findViewById(R.id.eqUnavailable);
 
         if (!EqFx.isAvailable()) {
             unavailable.setVisibility(View.VISIBLE);
-            bandsContainer.setVisibility(View.GONE);
             eqSwitch.setEnabled(false);
             presetButton.setEnabled(false);
+            savePresetButton.setEnabled(false);
             return;
         }
 
@@ -56,45 +62,41 @@ public class EqualizerActivity extends AppCompatActivity {
         eqSwitch.setOnCheckedChangeListener((btn, checked) -> EqFx.setEnabled(checked));
 
         presetButton.setOnClickListener(v -> showPresetDialog());
+        savePresetButton.setOnClickListener(v -> showSavePresetDialog());
         updatePresetButton();
 
-        buildBands();
+        buildBands(bandsContainer);
     }
 
-    private void buildBands() {
-        short bands = EqFx.getBandCount();
-        short[] range = EqFx.getLevelRange();
-        minLevel = range[0];
-        maxLevel = range[1];
+    private void buildBands(LinearLayout container) {
+        int bands = EqFx.getBandCount();
         valueLabels = new TextView[bands];
-        sliders = new VerticalSeekBar[bands];
+        sliders = new SeekBar[bands];
+        float density = getResources().getDisplayMetrics().density;
 
-        for (short band = 0; band < bands; band++) {
-            final short b = band;
+        for (int band = 0; band < bands; band++) {
+            final int b = band;
 
-            LinearLayout column = new LinearLayout(this);
-            column.setOrientation(LinearLayout.VERTICAL);
-            column.setGravity(Gravity.CENTER_HORIZONTAL);
-            LinearLayout.LayoutParams columnParams =
-                    new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-            column.setLayoutParams(columnParams);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, (int) (6 * density), 0, (int) (6 * density));
 
-            TextView value = new TextView(this);
-            value.setGravity(Gravity.CENTER);
-            value.setTextSize(12);
-            valueLabels[band] = value;
-            column.addView(value, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            TextView freq = new TextView(this);
+            freq.setText(formatFreq(EqFx.getCenterFreqHz(b)));
+            freq.setGravity(Gravity.END);
+            freq.setTextSize(13);
+            row.addView(freq, new LinearLayout.LayoutParams(
+                    (int) (52 * density), LinearLayout.LayoutParams.WRAP_CONTENT));
 
-            VerticalSeekBar slider = new VerticalSeekBar(this);
-            slider.setMax(maxLevel - minLevel);
-            slider.setProgress(EqFx.getBandLevel(b) - minLevel);
+            SeekBar slider = new SeekBar(this);
+            slider.setMax(SLIDER_MAX);
+            slider.setProgress(gainToProgress(EqFx.getBandGainDb(b)));
             slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override
                 public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                     if (fromUser) {
-                        EqFx.setBandLevel(b, (short) (progress + minLevel));
+                        EqFx.setBandGainDb(b, progressToGain(progress));
                         updatePresetButton();
                     }
                     updateValueLabel(b);
@@ -110,40 +112,35 @@ public class EqualizerActivity extends AppCompatActivity {
             });
             sliders[band] = slider;
             LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 0, 1f);
-            sliderParams.gravity = Gravity.CENTER_HORIZONTAL;
-            column.addView(slider, sliderParams);
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            sliderParams.setMarginStart((int) (8 * density));
+            row.addView(slider, sliderParams);
 
-            TextView freq = new TextView(this);
-            freq.setGravity(Gravity.CENTER);
-            freq.setTextSize(11);
-            freq.setText(formatFreq(EqFx.getCenterFreqHz(b)));
-            column.addView(freq, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            TextView value = new TextView(this);
+            value.setGravity(Gravity.END);
+            value.setTextSize(13);
+            valueLabels[band] = value;
+            row.addView(value, new LinearLayout.LayoutParams(
+                    (int) (64 * density), LinearLayout.LayoutParams.WRAP_CONTENT));
 
-            bandsContainer.addView(column);
+            container.addView(row);
             updateValueLabel(b);
         }
     }
 
     private void showPresetDialog() {
+        List<String> namesList = EqFx.getPresetNames();
+        String[] names = namesList.toArray(new String[0]);
         String current = EqFx.getPresetName();
-        int checked = -1;
-        for (int i = 0; i < EqPresets.NAMES.length; i++) {
-            if (EqPresets.NAMES[i].equals(current)) {
-                checked = i;
-                break;
-            }
-        }
+        int checked = namesList.indexOf(current);
         final int[] selected = {checked};
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.eq_preset_button)
-                .setSingleChoiceItems(EqPresets.NAMES, checked,
+                .setSingleChoiceItems(names, checked,
                         (dialog, which) -> selected[0] = which)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                     if (selected[0] >= 0) {
-                        EqFx.applyPreset(EqPresets.NAMES[selected[0]]);
+                        EqFx.applyPreset(names[selected[0]]);
                         refreshSliders();
                         updatePresetButton();
                     }
@@ -152,22 +149,54 @@ public class EqualizerActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void showSavePresetDialog() {
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setHint(R.string.eq_preset_name_hint);
+        String current = EqFx.getPresetName();
+        if (!current.isEmpty()) {
+            input.setText(current);
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.eq_save_preset)
+                .setView(input)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    String name = input.getText().toString().trim();
+                    if (!name.isEmpty()) {
+                        EqFx.saveCurrentAsPreset(name);
+                        updatePresetButton();
+                        Toast.makeText(this, R.string.eq_preset_saved,
+                                Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     private void refreshSliders() {
-        for (short band = 0; band < sliders.length; band++) {
-            sliders[band].setProgress(EqFx.getBandLevel(band) - minLevel);
+        for (int band = 0; band < sliders.length; band++) {
+            sliders[band].setProgress(gainToProgress(EqFx.getBandGainDb(band)));
             updateValueLabel(band);
         }
     }
 
-    private void updateValueLabel(short band) {
-        float db = EqFx.getBandLevel(band) / 100f;
-        valueLabels[band].setText(String.format(Locale.US, "%+.1f", db));
+    private void updateValueLabel(int band) {
+        valueLabels[band].setText(String.format(Locale.US, "%+.1f dB",
+                EqFx.getBandGainDb(band)));
     }
 
     private void updatePresetButton() {
         String preset = EqFx.getPresetName();
         presetButton.setText(preset.isEmpty()
                 ? getString(R.string.eq_custom) : preset);
+    }
+
+    private static int gainToProgress(float db) {
+        return Math.round((db + EqFx.MAX_GAIN_DB) * 10);
+    }
+
+    private static float progressToGain(int progress) {
+        return progress / 10f - EqFx.MAX_GAIN_DB;
     }
 
     private static String formatFreq(int hz) {

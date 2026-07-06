@@ -20,6 +20,7 @@ import com.example.viby.VibyApp;
 import com.example.viby.data.Track;
 import com.example.viby.data.TrackDao;
 import com.example.viby.data.VibyDatabase;
+import com.example.viby.util.Formats;
 import com.example.viby.util.StorageHelper;
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
@@ -35,12 +36,16 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import kotlin.Unit;
 
 /**
  * Foreground-сервис с последовательной очередью загрузок yt-dlp.
- * Треки и плейлисты добавляются интентом ACTION_ENQUEUE.
+ * Треки и плейлисты добавляются интентом ACTION_ENQUEUE; загрузку можно
+ * ставить на паузу (процесс yt-dlp убивается, докачка продолжается
+ * с .part-файла) и возобновлять.
  */
 public class DownloadService extends Service {
 
@@ -48,12 +53,18 @@ public class DownloadService extends Service {
 
     public static final String ACTION_ENQUEUE = "com.example.viby.action.ENQUEUE";
     public static final String ACTION_CANCEL_ALL = "com.example.viby.action.CANCEL_ALL";
+    public static final String ACTION_PAUSE_ALL = "com.example.viby.action.PAUSE_ALL";
+    public static final String ACTION_RESUME_ALL = "com.example.viby.action.RESUME_ALL";
     public static final String EXTRA_URL = "url";
     public static final String EXTRA_PLAYLIST = "playlist";
     public static final String EXTRA_IS_PLAYLIST = "is_playlist";
 
     private static final int NOTIF_PROGRESS_ID = 1;
     private static final int ENGINE_WAIT_SECONDS = 60;
+
+    /** "45.2% of ~ 4.32MiB at ..." — вытаскиваем общий размер трека. */
+    private static final Pattern SIZE_PATTERN =
+            Pattern.compile("of\\s+~?\\s*([0-9.]+)(KiB|MiB|GiB)");
 
     private static final MutableLiveData<List<DownloadJob>> jobsLive =
             new MutableLiveData<>(new ArrayList<>());
@@ -72,11 +83,17 @@ public class DownloadService extends Service {
         ContextCompat.startForegroundService(context, intent);
     }
 
+    public static void sendAction(Context context, String action) {
+        context.startService(new Intent(context, DownloadService.class).setAction(action));
+    }
+
     private final List<DownloadJob> jobs = new ArrayList<>();
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final AtomicInteger pendingCount = new AtomicInteger(0);
     private final AtomicInteger notifIdSeq = new AtomicInteger(100);
     private volatile String activeProcessId;
+    @Nullable
+    private volatile DownloadJob activeJob;
 
     private NotificationManager notificationManager;
     private TrackDao dao;
@@ -91,27 +108,36 @@ public class DownloadService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null) {
+        if (intent == null || intent.getAction() == null) {
             return START_NOT_STICKY;
         }
-        if (ACTION_CANCEL_ALL.equals(intent.getAction())) {
-            cancelAll();
-            return START_NOT_STICKY;
-        }
-        if (ACTION_ENQUEUE.equals(intent.getAction())) {
-            String url = intent.getStringExtra(EXTRA_URL);
-            String playlist = intent.getStringExtra(EXTRA_PLAYLIST);
-            boolean isPlaylist = intent.getBooleanExtra(EXTRA_IS_PLAYLIST, false);
-            if (url != null && !url.trim().isEmpty()) {
-                DownloadJob job = new DownloadJob(url.trim(), playlist, isPlaylist);
-                synchronized (jobs) {
-                    jobs.add(job);
+        switch (intent.getAction()) {
+            case ACTION_CANCEL_ALL:
+                cancelAll();
+                break;
+            case ACTION_PAUSE_ALL:
+                setPausedAll(true);
+                break;
+            case ACTION_RESUME_ALL:
+                setPausedAll(false);
+                break;
+            case ACTION_ENQUEUE:
+                String url = intent.getStringExtra(EXTRA_URL);
+                String playlist = intent.getStringExtra(EXTRA_PLAYLIST);
+                boolean isPlaylist = intent.getBooleanExtra(EXTRA_IS_PLAYLIST, false);
+                if (url != null && !url.trim().isEmpty()) {
+                    DownloadJob job = new DownloadJob(url.trim(), playlist, isPlaylist);
+                    synchronized (jobs) {
+                        jobs.add(job);
+                    }
+                    pendingCount.incrementAndGet();
+                    publish(true);
+                    startForeground(NOTIF_PROGRESS_ID, buildProgressNotification(job));
+                    worker.execute(() -> runJob(job));
                 }
-                pendingCount.incrementAndGet();
-                publish(true);
-                startForeground(NOTIF_PROGRESS_ID, buildProgressNotification(job));
-                worker.execute(() -> runJob(job));
-            }
+                break;
+            default:
+                break;
         }
         return START_NOT_STICKY;
     }
@@ -125,6 +151,7 @@ public class DownloadService extends Service {
     // ---------------------------------------------------------------- queue
 
     private void runJob(DownloadJob job) {
+        activeJob = job;
         try {
             if (job.cancelRequested) {
                 job.status = DownloadJob.Status.CANCELED;
@@ -142,6 +169,7 @@ public class DownloadService extends Service {
                     ? DownloadJob.Status.CANCELED : DownloadJob.Status.FAILED;
             job.error = shortError(e);
         } finally {
+            activeJob = null;
             publish(true);
             postResultNotification(job);
             if (pendingCount.decrementAndGet() == 0) {
@@ -160,6 +188,7 @@ public class DownloadService extends Service {
         String videoId = info.getId();
         String title = info.getTitle() != null ? info.getTitle() : job.url;
         job.title = title;
+        job.currentTrackTitle = title;
         String playlist = job.playlistName != null && !job.playlistName.isEmpty()
                 ? job.playlistName : getString(R.string.default_playlist);
         job.playlistName = playlist;
@@ -198,9 +227,16 @@ public class DownloadService extends Service {
         job.playlistName = playlist;
         job.title = playlistTitle;
 
+        // запоминаем источник — для кнопки «обновить плейлист»
+        com.example.viby.data.PlaylistSource source = new com.example.viby.data.PlaylistSource();
+        source.playlistName = playlist;
+        source.sourceUrl = job.url;
+        source.updatedAt = System.currentTimeMillis();
+        VibyDatabase.get(this).playlistSourceDao().upsert(source);
+
         JSONArray entries = root.optJSONArray("entries");
         if (entries == null || entries.length() == 0) {
-            throw new IllegalStateException("В плейлисте не нашлось видео");
+            throw new IllegalStateException(getString(R.string.error_playlist_empty));
         }
         job.totalCount = entries.length();
         publish(true);
@@ -209,14 +245,21 @@ public class DownloadService extends Service {
             if (job.cancelRequested) {
                 break;
             }
+            waitWhilePaused(job);
+            if (job.cancelRequested) {
+                break;
+            }
             job.currentIndex = i + 1;
             job.progress = 0;
+            job.downloadedBytes = 0;
+            job.totalBytes = 0;
             JSONObject entry = entries.getJSONObject(i);
             String videoId = entry.optString("id", "");
             String title = entry.optString("title", videoId);
             String uploader = entry.optString("uploader",
                     entry.optString("channel", null));
             long durationMs = (long) (entry.optDouble("duration", 0) * 1000);
+            job.currentTrackTitle = title;
             publish(true);
             updateProgressNotification(job);
             try {
@@ -231,6 +274,7 @@ public class DownloadService extends Service {
                 }
                 Log.w(TAG, "playlist entry failed: " + title, e);
                 job.failedCount++;
+                job.failedTitles.add(title);
             }
         }
         job.status = job.cancelRequested
@@ -243,6 +287,10 @@ public class DownloadService extends Service {
                                String title, @Nullable String uploader,
                                long durationMs, String playlist) throws Exception {
         job.status = DownloadJob.Status.DOWNLOADING;
+        job.currentTrackTitle = title;
+        job.progress = 0;
+        job.downloadedBytes = 0;
+        job.totalBytes = 0;
         File dir = StorageHelper.playlistDir(this, playlist);
         String baseName = StorageHelper.sanitize(title);
         // защита от одинаковых названий разных видео
@@ -253,14 +301,14 @@ public class DownloadService extends Service {
 
         File resultFile;
         try {
-            resultFile = executeDownload(job, videoUrl, dir, baseName, "mp3");
+            resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName, "mp3");
         } catch (Exception e) {
             if (job.cancelRequested) {
                 throw e;
             }
             // fallback: если конвертация в mp3 не удалась — пробуем m4a
             Log.w(TAG, "mp3 failed, retrying as m4a: " + title, e);
-            resultFile = executeDownload(job, videoUrl, dir, baseName, "m4a");
+            resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName, "m4a");
         }
 
         Track track = new Track();
@@ -275,6 +323,42 @@ public class DownloadService extends Service {
         track.position = dao.nextPosition(playlist);
         track.createdAt = System.currentTimeMillis();
         dao.insert(track);
+    }
+
+    /** Пауза = убить процесс yt-dlp; при возобновлении он докачивает .part-файл. */
+    private File downloadWithPauseRetry(DownloadJob job, String videoUrl, File dir,
+                                        String baseName, String format) throws Exception {
+        while (true) {
+            waitWhilePaused(job);
+            if (job.cancelRequested) {
+                throw new InterruptedException("canceled");
+            }
+            try {
+                return executeDownload(job, videoUrl, dir, baseName, format);
+            } catch (Exception e) {
+                if (job.pauseRequested && !job.cancelRequested) {
+                    continue; // процесс убит паузой — подождём и продолжим
+                }
+                throw e;
+            }
+        }
+    }
+
+    private void waitWhilePaused(DownloadJob job) throws InterruptedException {
+        if (!job.pauseRequested || job.cancelRequested) {
+            return;
+        }
+        job.status = DownloadJob.Status.PAUSED;
+        publish(true);
+        updateProgressNotification(job);
+        while (job.pauseRequested && !job.cancelRequested) {
+            Thread.sleep(300);
+        }
+        if (!job.cancelRequested) {
+            job.status = DownloadJob.Status.DOWNLOADING;
+            publish(true);
+            updateProgressNotification(job);
+        }
     }
 
     private File executeDownload(DownloadJob job, String videoUrl, File dir,
@@ -298,6 +382,7 @@ public class DownloadService extends Service {
             YoutubeDL.getInstance().execute(request, processId,
                     (progress, etaSeconds, line) -> {
                         job.progress = Math.max(0, Math.min(100, Math.round(progress)));
+                        parseSizes(job, line);
                         publish(false);
                         updateProgressNotification(job);
                         return Unit.INSTANCE;
@@ -311,9 +396,10 @@ public class DownloadService extends Service {
             return expected;
         }
         // на всякий случай: yt-dlp мог сохранить с другим расширением
+        String finalBaseName = baseName;
         File[] candidates = dir.listFiles((d, name) -> {
             int dot = name.lastIndexOf('.');
-            return dot > 0 && name.substring(0, dot).equals(baseName);
+            return dot > 0 && name.substring(0, dot).equals(finalBaseName);
         });
         if (candidates != null && candidates.length > 0) {
             return candidates[0];
@@ -321,18 +407,66 @@ public class DownloadService extends Service {
         throw new IllegalStateException("Файл не найден после загрузки: " + baseName);
     }
 
-    // ------------------------------------------------------------ cancel
+    private static void parseSizes(DownloadJob job, @Nullable String line) {
+        if (line == null) {
+            return;
+        }
+        Matcher matcher = SIZE_PATTERN.matcher(line);
+        if (matcher.find()) {
+            try {
+                double value = Double.parseDouble(matcher.group(1));
+                switch (matcher.group(2)) {
+                    case "GiB":
+                        value *= 1024 * 1024 * 1024;
+                        break;
+                    case "MiB":
+                        value *= 1024 * 1024;
+                        break;
+                    default:
+                        value *= 1024;
+                        break;
+                }
+                job.totalBytes = (long) value;
+                job.downloadedBytes = (long) (value * job.progress / 100.0);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+    }
+
+    // ------------------------------------------------------- pause / cancel
+
+    private void setPausedAll(boolean paused) {
+        synchronized (jobs) {
+            for (DownloadJob job : jobs) {
+                if (job.isActive()) {
+                    job.pauseRequested = paused;
+                }
+            }
+        }
+        if (paused) {
+            killActiveProcess();
+        }
+        publish(true);
+        DownloadJob job = activeJob;
+        if (job != null) {
+            updateProgressNotification(job);
+        }
+    }
 
     private void cancelAll() {
         synchronized (jobs) {
             for (DownloadJob job : jobs) {
-                if (job.status == DownloadJob.Status.QUEUED
-                        || job.status == DownloadJob.Status.PREPARING
-                        || job.status == DownloadJob.Status.DOWNLOADING) {
+                if (job.isActive()) {
                     job.cancelRequested = true;
+                    job.pauseRequested = false;
                 }
             }
         }
+        killActiveProcess();
+        publish(true);
+    }
+
+    private void killActiveProcess() {
         String processId = activeProcessId;
         if (processId != null) {
             try {
@@ -341,7 +475,6 @@ public class DownloadService extends Service {
                 Log.w(TAG, "destroyProcessById failed", e);
             }
         }
-        publish(true);
     }
 
     // ------------------------------------------------------------ helpers
@@ -353,11 +486,11 @@ public class DownloadService extends Service {
                 return;
             }
             if (app.getEngineState().getValue() == VibyApp.EngineState.FAILED) {
-                throw new IllegalStateException("yt-dlp не смог инициализироваться");
+                throw new IllegalStateException(getString(R.string.error_engine_init));
             }
             Thread.sleep(500);
         }
-        throw new IllegalStateException("yt-dlp так и не инициализировался");
+        throw new IllegalStateException(getString(R.string.error_engine_init));
     }
 
     private void publish(boolean force) {
@@ -376,19 +509,46 @@ public class DownloadService extends Service {
                 this, 0,
                 new Intent(this, DownloadService.class).setAction(ACTION_CANCEL_ALL),
                 PendingIntent.FLAG_IMMUTABLE);
+        boolean paused = job.status == DownloadJob.Status.PAUSED || job.pauseRequested;
+        PendingIntent pauseIntent = PendingIntent.getService(
+                this, 1,
+                new Intent(this, DownloadService.class)
+                        .setAction(paused ? ACTION_RESUME_ALL : ACTION_PAUSE_ALL),
+                PendingIntent.FLAG_IMMUTABLE);
 
-        String text = job.isPlaylist && job.totalCount > 0
-                ? getString(R.string.notif_download_playlist_progress,
-                        job.currentIndex, job.totalCount)
-                : null;
+        String trackName = job.currentTrackTitle != null
+                ? job.currentTrackTitle : (job.title != null ? job.title : job.url);
+        StringBuilder text = new StringBuilder();
+        if (job.isPlaylist && job.totalCount > 0) {
+            text.append(getString(R.string.notif_download_playlist_progress,
+                    job.currentIndex, job.totalCount));
+        }
+        if (job.totalBytes > 0) {
+            if (text.length() > 0) {
+                text.append(" · ");
+            }
+            text.append(Formats.size(this, job.downloadedBytes))
+                    .append(" / ")
+                    .append(Formats.size(this, job.totalBytes));
+        }
+        if (paused) {
+            if (text.length() > 0) {
+                text.append(" · ");
+            }
+            text.append(getString(R.string.status_paused));
+        }
+
         return new NotificationCompat.Builder(this, VibyApp.CHANNEL_DOWNLOADS)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(getString(R.string.notif_downloading,
-                        job.title != null ? job.title : job.url))
-                .setContentText(text)
-                .setProgress(100, job.progress, job.status == DownloadJob.Status.PREPARING)
+                .setContentTitle(getString(R.string.notif_downloading, trackName))
+                .setContentText(text.length() > 0 ? text.toString() : null)
+                .setProgress(100, job.progress,
+                        job.status == DownloadJob.Status.PREPARING)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
+                .addAction(0, getString(paused
+                        ? R.string.btn_resume_download
+                        : R.string.btn_pause_download), pauseIntent)
                 .addAction(0, getString(R.string.btn_cancel), cancelIntent)
                 .build();
     }
@@ -413,14 +573,24 @@ public class DownloadService extends Service {
             default:
                 return; // отменённые не показываем
         }
-        Notification notification =
+        NotificationCompat.Builder builder =
                 new NotificationCompat.Builder(this, VibyApp.CHANNEL_DOWNLOADS)
                         .setSmallIcon(android.R.drawable.stat_sys_download_done)
                         .setContentTitle(job.title != null ? job.title : job.url)
                         .setContentText(text)
-                        .setAutoCancel(true)
-                        .build();
-        notificationManager.notify(notifIdSeq.getAndIncrement(), notification);
+                        .setAutoCancel(true);
+        if (!job.failedTitles.isEmpty()) {
+            // разворачиваемое уведомление со списком нескачавшихся треков
+            StringBuilder big = new StringBuilder(text).append('\n')
+                    .append(getString(R.string.failed_tracks_header));
+            synchronized (job.failedTitles) {
+                for (String title : job.failedTitles) {
+                    big.append("\n• ").append(title);
+                }
+            }
+            builder.setStyle(new NotificationCompat.BigTextStyle().bigText(big.toString()));
+        }
+        notificationManager.notify(notifIdSeq.getAndIncrement(), builder.build());
     }
 
     private static String shortError(Exception e) {

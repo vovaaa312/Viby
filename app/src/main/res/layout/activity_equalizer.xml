@@ -36,7 +36,17 @@
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:maxWidth="160dp"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:text="@string/eq_preset_button" />
+
+        <Button
+            android:id="@+id/savePresetButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_save" />
     </LinearLayout>
 
     <TextView
@@ -49,13 +59,19 @@
         android:textColor="@color/viby_text_secondary"
         android:visibility="gone" />
 
-    <LinearLayout
-        android:id="@+id/bandsContainer"
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="horizontal"
-        android:paddingHorizontal="8dp"
-        android:paddingBottom="16dp" />
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:id="@+id/bandsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="24dp" />
+    </ScrollView>
 
 </LinearLayout>

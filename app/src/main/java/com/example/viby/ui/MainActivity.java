@@ -47,10 +47,8 @@ public class MainActivity extends AppCompatActivity {
     private ViewPager2 pager;
 
     private ListenableFuture<MediaController> controllerFuture;
-    /** Плейлист, который сейчас загружен в очередь плеера. */
+    /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
     private String loadedPlaylist;
-    /** Пользователь только что выбрал плейлист в drawer — при загрузке очереди начать играть. */
-    private boolean playOnNextSync;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,6 +60,14 @@ public class MainActivity extends AppCompatActivity {
         drawerLayout = findViewById(R.id.drawerLayout);
         toolbar = findViewById(R.id.toolbar);
         toolbar.setNavigationOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+        toolbar.inflateMenu(R.menu.menu_main);
+        toolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.action_sort) {
+                showSortDialog();
+                return true;
+            }
+            return false;
+        });
 
         pager = findViewById(R.id.pager);
         pager.setAdapter(new FragmentStateAdapter(this) {
@@ -97,11 +103,17 @@ public class MainActivity extends AppCompatActivity {
         });
 
         RecyclerView playlistsList = findViewById(R.id.playlistsList);
-        PlaylistsAdapter adapter = new PlaylistsAdapter(name -> {
-            drawerLayout.closeDrawers();
-            if (!name.equals(viewModel.getActivePlaylistName())) {
-                playOnNextSync = true;
+        PlaylistsAdapter adapter = new PlaylistsAdapter(new PlaylistsAdapter.Listener() {
+            @Override
+            public void onPlaylistClick(String name) {
+                drawerLayout.closeDrawers();
+                // просто открываем плейлист для просмотра — играющая очередь не трогается
                 viewModel.setActivePlaylist(name);
+            }
+
+            @Override
+            public void onPlaylistDelete(com.example.viby.data.PlaylistInfo playlist) {
+                confirmDeletePlaylist(playlist);
             }
         });
         playlistsList.setAdapter(adapter);
@@ -137,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
                 MediaController controller = controllerFuture.get();
                 if (controller.getMediaItemCount() > 0) {
                     // сервис уже играл (например, после поворота) — очередь не трогаем
-                    loadedPlaylist = viewModel.getActivePlaylistName();
+                    loadedPlaylist = viewModel.getQueuePlaylist();
                 }
                 viewModel.controller.setValue(controller);
                 syncQueue();
@@ -158,7 +170,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** Приводит очередь плеера в соответствие с активным плейлистом. */
+    /**
+     * Дозаполняет очередь плеера. Открытие другого плейлиста очередь НЕ заменяет —
+     * замена происходит только при тапе по треку (playTrack).
+     */
     private void syncQueue() {
         MediaController controller = viewModel.controller.getValue();
         List<Track> tracks = viewModel.tracks.getValue();
@@ -183,17 +198,26 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        loadedPlaylist = active;
+        // очередь пуста (холодный старт) — тихо загружаем просматриваемый плейлист без плей
+        if (controller.getMediaItemCount() == 0 && !tracks.isEmpty()) {
+            loadQueue(controller, tracks, active, 0, false);
+        }
+    }
+
+    /** Заменить очередь плеера треками плейлиста. */
+    private void loadQueue(MediaController controller, List<Track> tracks,
+                           String playlist, int startIndex, boolean play) {
         List<MediaItem> items = new ArrayList<>();
         for (Track track : tracks) {
             items.add(toMediaItem(track));
         }
-        controller.setMediaItems(items);
+        loadedPlaylist = playlist;
+        viewModel.setQueuePlaylist(playlist);
+        controller.setMediaItems(items, startIndex, 0);
         controller.prepare();
-        if (playOnNextSync && !items.isEmpty()) {
+        if (play) {
             controller.play();
         }
-        playOnNextSync = false;
     }
 
     static MediaItem toMediaItem(Track track) {
@@ -217,16 +241,143 @@ public class MainActivity extends AppCompatActivity {
         pager.setCurrentItem(0, true);
     }
 
-    /** Играть трек из очереди (тап в списке). */
-    void playTrack(Track track, int position) {
-        MediaController controller = viewModel.controller.getValue();
-        if (controller == null) {
+    // -------------------------------------------------------------- sorting
+
+    /** Диалог «Сортировать по…» в духе AIMP: радио-список + «В обратном порядке». */
+    private void showSortDialog() {
+        String[] labels = {
+                getString(R.string.sort_by_title),
+                getString(R.string.sort_by_artist),
+                getString(R.string.sort_by_filename),
+                getString(R.string.sort_by_duration),
+                getString(R.string.sort_by_date_added),
+                getString(R.string.sort_shuffle),
+        };
+        android.widget.RadioGroup group = new android.widget.RadioGroup(this);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        group.setPadding(pad, pad / 2, pad, 0);
+        for (int i = 0; i < labels.length; i++) {
+            android.widget.RadioButton button = new android.widget.RadioButton(this);
+            button.setId(i + 1);
+            button.setText(labels[i]);
+            button.setMinHeight((int) (44 * getResources().getDisplayMetrics().density));
+            group.addView(button);
+        }
+        android.widget.CheckBox reverse = new android.widget.CheckBox(this);
+        reverse.setText(R.string.sort_reverse);
+
+        android.widget.LinearLayout content = new android.widget.LinearLayout(this);
+        content.setOrientation(android.widget.LinearLayout.VERTICAL);
+        content.addView(group);
+        android.widget.LinearLayout.LayoutParams reverseParams =
+                new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        reverseParams.setMargins(pad, pad / 2, pad, 0);
+        content.addView(reverse, reverseParams);
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(content);
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.sort_title)
+                .setView(scroll)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    int checked = group.getCheckedRadioButtonId();
+                    if (checked > 0) {
+                        applySort(checked - 1, reverse.isChecked());
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Пересортировать активный плейлист в БД и обновить очередь без остановки музыки. */
+    private void applySort(int option, boolean reversed) {
+        String playlist = viewModel.getActivePlaylistName();
+        if (playlist == null) {
             return;
         }
-        // позиция в списке совпадает с позицией в очереди (очередь строится из того же списка)
-        if (position < controller.getMediaItemCount()) {
-            controller.seekTo(position, 0);
-            controller.play();
+        VibyDatabase.dbExecutor.execute(() -> {
+            var dao = VibyDatabase.get(this).trackDao();
+            List<Track> tracks = dao.getPlaylistSync(playlist);
+            switch (option) {
+                case 0:
+                    tracks.sort(java.util.Comparator.comparing(
+                            t -> t.title.toLowerCase(java.util.Locale.getDefault())));
+                    break;
+                case 1:
+                    tracks.sort(java.util.Comparator.comparing(
+                            t -> t.uploader != null
+                                    ? t.uploader.toLowerCase(java.util.Locale.getDefault()) : ""));
+                    break;
+                case 2:
+                    tracks.sort(java.util.Comparator.comparing(
+                            t -> new File(t.filePath).getName()
+                                    .toLowerCase(java.util.Locale.getDefault())));
+                    break;
+                case 3:
+                    tracks.sort(java.util.Comparator.comparingLong(t -> t.durationMs));
+                    break;
+                case 4:
+                    tracks.sort(java.util.Comparator.comparingLong(t -> t.createdAt));
+                    break;
+                default:
+                    java.util.Collections.shuffle(tracks);
+                    break;
+            }
+            if (reversed && option != 5) {
+                java.util.Collections.reverse(tracks);
+            }
+            for (int i = 0; i < tracks.size(); i++) {
+                tracks.get(i).position = i;
+            }
+            dao.updateAll(tracks);
+            List<Track> sorted = new ArrayList<>(tracks);
+            runOnUiThread(() -> resyncQueueAfterSort(playlist, sorted));
+        });
+    }
+
+    /** После сортировки перestraивает очередь, сохраняя текущий трек и позицию. */
+    private void resyncQueueAfterSort(String playlist, List<Track> sorted) {
+        MediaController controller = viewModel.controller.getValue();
+        if (controller == null || !playlist.equals(loadedPlaylist)) {
+            return; // очередь держит другой плейлист — трогать нечего
+        }
+        String currentId = controller.getCurrentMediaItem() != null
+                ? controller.getCurrentMediaItem().mediaId : null;
+        long position = controller.getCurrentPosition();
+        boolean playWhenReady = controller.getPlayWhenReady();
+
+        List<MediaItem> items = new ArrayList<>();
+        int startIndex = 0;
+        for (int i = 0; i < sorted.size(); i++) {
+            items.add(toMediaItem(sorted.get(i)));
+            if (currentId != null && currentId.equals(String.valueOf(sorted.get(i).id))) {
+                startIndex = i;
+            }
+        }
+        controller.setMediaItems(items, startIndex, currentId != null ? position : 0);
+        controller.prepare();
+        controller.setPlayWhenReady(playWhenReady);
+    }
+
+    /** Играть трек из списка. Если открыт другой плейлист — он заменяет очередь. */
+    void playTrack(Track track, int position) {
+        MediaController controller = viewModel.controller.getValue();
+        List<Track> tracks = viewModel.tracks.getValue();
+        String active = viewModel.getActivePlaylistName();
+        if (controller == null || tracks == null || active == null) {
+            return;
+        }
+        if (active.equals(loadedPlaylist)) {
+            if (position < controller.getMediaItemCount()) {
+                controller.seekTo(position, 0);
+                controller.play();
+            }
+        } else {
+            loadQueue(controller, tracks, active,
+                    Math.min(position, tracks.size() - 1), true);
         }
     }
 
@@ -342,6 +493,53 @@ public class MainActivity extends AppCompatActivity {
                 controller.removeMediaItem(i);
             }
         }
+    }
+
+    /** Удалить целый плейлист: все треки, файлы и папку. */
+    private void confirmDeletePlaylist(com.example.viby.data.PlaylistInfo playlist) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_playlist_title)
+                .setMessage(getString(R.string.delete_playlist_message,
+                        playlist.playlistName, playlist.trackCount))
+                .setPositiveButton(R.string.btn_delete,
+                        (d, w) -> deletePlaylist(playlist.playlistName))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void deletePlaylist(String name) {
+        MediaController controller = viewModel.controller.getValue();
+        if (name.equals(loadedPlaylist) && controller != null) {
+            controller.stop();
+            controller.clearMediaItems();
+            loadedPlaylist = null;
+        }
+        String defaultPlaylist = getString(R.string.default_playlist);
+        if (name.equals(viewModel.getActivePlaylistName())) {
+            viewModel.setActivePlaylist(defaultPlaylist);
+        }
+        VibyDatabase.dbExecutor.execute(() -> {
+            var dao = VibyDatabase.get(this).trackDao();
+            List<Track> tracks = dao.getPlaylistSync(name);
+            for (Track track : tracks) {
+                //noinspection ResultOfMethodCallIgnored
+                new File(track.filePath).delete();
+                dao.delete(track);
+            }
+            File dir = com.example.viby.util.StorageHelper.playlistDir(this, name);
+            File[] leftovers = dir.listFiles();
+            if (leftovers != null) {
+                for (File file : leftovers) {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.delete();
+                }
+            }
+            //noinspection ResultOfMethodCallIgnored
+            dir.delete();
+            VibyDatabase.get(this).playlistSourceDao().delete(name);
+            runOnUiThread(() -> Toast.makeText(this,
+                    R.string.playlist_deleted, Toast.LENGTH_SHORT).show());
+        });
     }
 
     /** Удалить один трек: файл + запись в БД + из очереди плеера. */
