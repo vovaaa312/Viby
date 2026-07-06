@@ -32,4 +32,14 @@
         android:textAppearance="?attr/textAppearanceLabelMedium"
         android:textColor="?android:attr/textColorSecondary" />
 
+    <ImageButton
+        android:id="@+id/playlistDelete"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="4dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/btn_delete"
+        android:src="@drawable/ic_delete"
+        android:alpha="0.7" />
+
 </LinearLayout>

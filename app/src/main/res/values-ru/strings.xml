@@ -1,0 +1,119 @@
+<resources>
+    <string name="app_name">Viby</string>
+
+    <string name="default_playlist">Default</string>
+
+    <!-- Drawer -->
+    <string name="menu_download">Скачать трек/плейлист</string>
+    <string name="menu_update_ytdlp">Обновить yt-dlp</string>
+    <string name="menu_effects">Звуковые эффекты</string>
+
+    <!-- Equalizer -->
+    <string name="eq_title">Эквалайзер</string>
+    <string name="eq_enabled">Включён</string>
+    <string name="eq_preset_button">Загрузить преднастройку…</string>
+    <string name="eq_unavailable">Эквалайзер недоступен: плеер ещё не запущен или устройство его не поддерживает</string>
+    <string name="eq_custom">Свой</string>
+    <string name="eq_save_preset">Сохранить пресет…</string>
+    <string name="eq_preset_name_hint">Название пресета</string>
+    <string name="eq_preset_saved">Пресет сохранён</string>
+    <string name="btn_save">Сохранить</string>
+
+    <!-- Context menu / multi-select -->
+    <string name="ctx_play">Воспроизвести</string>
+    <string name="ctx_add_queue">Добавить в очередь</string>
+    <string name="ctx_insert_after_current">Вставить после проигрываемого</string>
+    <string name="ctx_move_to_playlist">Отправить в плейлист…</string>
+    <string name="ctx_remove_from_playlist">Удалить из плейлиста</string>
+    <string name="ctx_delete_from_device">Удалить с устройства</string>
+    <string name="ctx_select">Выделить</string>
+    <string name="selection_title">Выбрано: %1$d</string>
+    <string name="select_all">Выбрать всё</string>
+    <string name="move_dialog_title">В какой плейлист?</string>
+    <string name="new_playlist_hint">Или новый плейлист</string>
+    <string name="tracks_moved">Перемещено: %1$d</string>
+    <string name="tracks_deleted">Удалено: %1$d</string>
+    <string name="delete_selected_title">Удалить выбранные треки?</string>
+    <string name="delete_selected_message">%1$d трек(ов) будут удалены с устройства вместе с файлами.</string>
+    <string name="remove_selected_message">%1$d трек(ов) будут убраны из плейлиста (файлы останутся).</string>
+    <string name="added_to_queue">Добавлено в очередь</string>
+
+    <string name="ytdlp_updating">Обновляю yt-dlp…</string>
+    <string name="ytdlp_updated">yt-dlp обновлён</string>
+    <string name="ytdlp_up_to_date">yt-dlp уже свежий</string>
+    <string name="ytdlp_update_error">Ошибка обновления yt-dlp: %1$s</string>
+
+    <!-- Player -->
+    <string name="no_track">Ничего не играет</string>
+    <string name="unknown_artist">Неизвестный исполнитель</string>
+    <string name="btn_play_pause">Играть/пауза</string>
+    <string name="btn_next">Следующий</string>
+    <string name="btn_prev">Предыдущий</string>
+    <string name="btn_shuffle">Перемешать</string>
+    <string name="btn_repeat">Повтор</string>
+    <string name="cover_desc">Обложка</string>
+    <string name="empty_queue">В этом плейлисте пока пусто.\nСкачай что-нибудь через боковое меню!</string>
+
+    <!-- Download screen -->
+    <string name="download_title">Скачать с YouTube</string>
+    <string name="url_hint">Ссылка на видео или плейлист YouTube</string>
+    <string name="playlist_hint">Плейлист (папка)</string>
+    <string name="btn_download">Скачать</string>
+    <string name="error_empty_url">Вставь ссылку на YouTube</string>
+    <string name="error_invalid_url">Это не похоже на ссылку YouTube</string>
+    <string name="download_queued">Добавлено в очередь загрузки</string>
+    <string name="whole_playlist">Скачать весь плейлист</string>
+    <string name="downloads_header">Загрузки</string>
+
+    <!-- Download notifications / statuses -->
+    <string name="channel_downloads">Загрузки</string>
+    <string name="channel_playback">Воспроизведение</string>
+    <string name="notif_downloading">Скачиваю: %1$s</string>
+    <string name="notif_download_playlist_progress">Трек %1$d из %2$d</string>
+    <string name="notif_download_done">Скачано: %1$s</string>
+    <string name="notif_download_failed">Ошибка: %1$s</string>
+    <string name="notif_download_summary">Готово: %1$d, ошибок: %2$d</string>
+    <string name="btn_cancel">Отмена</string>
+    <string name="btn_pause_download">Пауза</string>
+    <string name="btn_resume_download">Продолжить</string>
+    <string name="status_paused">Пауза</string>
+    <string name="status_queued">В очереди</string>
+    <string name="status_fetching_info">Получаю информацию…</string>
+    <string name="status_done">Готово · %1$s</string>
+    <string name="status_done_errors">Готово, ошибок: %1$d</string>
+    <string name="status_failed">Ошибка</string>
+    <string name="status_canceled">Отменено</string>
+    <string name="error_playlist_empty">В плейлисте не нашлось видео</string>
+    <string name="error_engine_init">yt-dlp не смог инициализироваться</string>
+    <string name="unit_kb">%1$s КБ</string>
+    <string name="unit_mb">%1$s МБ</string>
+
+    <!-- Sorting -->
+    <string name="sort_title">Сортировать по…</string>
+    <string name="sort_by_title">Названию</string>
+    <string name="sort_by_artist">Артисту</string>
+    <string name="sort_by_filename">Имени файла</string>
+    <string name="sort_by_duration">Длительности</string>
+    <string name="sort_by_date_added">Дате добавления</string>
+    <string name="sort_shuffle">Перемешать</string>
+    <string name="sort_reverse">В обратном порядке</string>
+
+    <!-- Playlist deletion -->
+    <string name="delete_playlist_title">Удалить плейлист?</string>
+    <string name="delete_playlist_message">«%1$s»: %2$d трек(ов) будут удалены с устройства вместе с файлами.</string>
+    <string name="playlist_deleted">Плейлист удалён</string>
+
+    <!-- Playlist refresh -->
+    <string name="refresh_playlist">Обновить плейлист</string>
+    <string name="refresh_started">Проверяю плейлист на новые треки…</string>
+    <string name="refresh_no_source">Этот плейлист не привязан к плейлисту YouTube</string>
+    <string name="failed_tracks_header">Не удалось скачать:</string>
+
+    <!-- Misc -->
+    <string name="menu_playlists_header">Плейлисты</string>
+    <string name="track_deleted">Трек удалён</string>
+    <string name="delete_track_title">Удалить трек?</string>
+    <string name="delete_track_message">«%1$s» будет удалён вместе с файлом.</string>
+    <string name="btn_delete">Удалить</string>
+    <string name="ytdlp_not_ready">yt-dlp ещё инициализируется, попробуй через пару секунд</string>
+</resources>

@@ -18,6 +18,8 @@ public class PlaylistsAdapter extends RecyclerView.Adapter<PlaylistsAdapter.Hold
 
     public interface Listener {
         void onPlaylistClick(String playlistName);
+
+        void onPlaylistDelete(PlaylistInfo playlist);
     }
 
     private final Listener listener;
@@ -54,17 +56,20 @@ public class PlaylistsAdapter extends RecyclerView.Adapter<PlaylistsAdapter.Hold
     class Holder extends RecyclerView.ViewHolder {
         private final TextView name;
         private final TextView count;
+        private final android.widget.ImageButton delete;
 
         Holder(@NonNull View itemView) {
             super(itemView);
             name = itemView.findViewById(R.id.playlistName);
             count = itemView.findViewById(R.id.playlistCount);
+            delete = itemView.findViewById(R.id.playlistDelete);
         }
 
         void bind(PlaylistInfo info) {
             name.setText(info.playlistName);
             count.setText(String.valueOf(info.trackCount));
             itemView.setOnClickListener(v -> listener.onPlaylistClick(info.playlistName));
+            delete.setOnClickListener(v -> listener.onPlaylistDelete(info));
         }
     }
 }

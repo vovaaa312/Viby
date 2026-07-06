@@ -4,77 +4,116 @@
     <string name="default_playlist">Default</string>
 
     <!-- Drawer -->
-    <string name="menu_download">Скачать трек/плейлист</string>
-    <string name="menu_update_ytdlp">Обновить yt-dlp</string>
-    <string name="menu_effects">Звуковые эффекты</string>
+    <string name="menu_download">Download track/playlist</string>
+    <string name="menu_update_ytdlp">Update yt-dlp</string>
+    <string name="menu_effects">Sound effects</string>
 
     <!-- Equalizer -->
-    <string name="eq_title">Эквалайзер</string>
-    <string name="eq_enabled">Включён</string>
-    <string name="eq_preset_button">Загрузить преднастройку…</string>
-    <string name="eq_unavailable">Эквалайзер недоступен: плеер ещё не запущен или устройство его не поддерживает</string>
-    <string name="eq_custom">Свой</string>
+    <string name="eq_title">Equalizer</string>
+    <string name="eq_enabled">Enabled</string>
+    <string name="eq_preset_button">Load preset…</string>
+    <string name="eq_unavailable">Equalizer is unavailable: the player has not started yet or the device does not support it</string>
+    <string name="eq_custom">Custom</string>
+    <string name="eq_save_preset">Save preset…</string>
+    <string name="eq_preset_name_hint">Preset name</string>
+    <string name="eq_preset_saved">Preset saved</string>
+    <string name="btn_save">Save</string>
 
     <!-- Context menu / multi-select -->
-    <string name="ctx_play">Воспроизвести</string>
-    <string name="ctx_add_queue">Добавить в очередь</string>
-    <string name="ctx_insert_after_current">Вставить после проигрываемого</string>
-    <string name="ctx_move_to_playlist">Отправить в плейлист…</string>
-    <string name="ctx_remove_from_playlist">Удалить из плейлиста</string>
-    <string name="ctx_delete_from_device">Удалить с устройства</string>
-    <string name="ctx_select">Выделить</string>
-    <string name="selection_title">Выбрано: %1$d</string>
-    <string name="select_all">Выбрать всё</string>
-    <string name="move_dialog_title">В какой плейлист?</string>
-    <string name="new_playlist_hint">Или новый плейлист</string>
-    <string name="tracks_moved">Перемещено: %1$d</string>
-    <string name="tracks_deleted">Удалено: %1$d</string>
-    <string name="delete_selected_title">Удалить выбранные треки?</string>
-    <string name="delete_selected_message">%1$d трек(ов) будут удалены с устройства вместе с файлами.</string>
-    <string name="remove_selected_message">%1$d трек(ов) будут убраны из плейлиста (файлы останутся).</string>
-    <string name="added_to_queue">Добавлено в очередь</string>
-    <string name="menu_playlists_header">Плейлисты</string>
-    <string name="ytdlp_updating">Обновляю yt-dlp…</string>
-    <string name="ytdlp_updated">yt-dlp обновлён</string>
-    <string name="ytdlp_up_to_date">yt-dlp уже свежий</string>
-    <string name="ytdlp_update_error">Ошибка обновления yt-dlp: %1$s</string>
+    <string name="ctx_play">Play</string>
+    <string name="ctx_add_queue">Add to queue</string>
+    <string name="ctx_insert_after_current">Play after current</string>
+    <string name="ctx_move_to_playlist">Send to playlist…</string>
+    <string name="ctx_remove_from_playlist">Remove from playlist</string>
+    <string name="ctx_delete_from_device">Delete from device</string>
+    <string name="ctx_select">Select</string>
+    <string name="selection_title">Selected: %1$d</string>
+    <string name="select_all">Select all</string>
+    <string name="move_dialog_title">Which playlist?</string>
+    <string name="new_playlist_hint">Or a new playlist</string>
+    <string name="tracks_moved">Moved: %1$d</string>
+    <string name="tracks_deleted">Deleted: %1$d</string>
+    <string name="delete_selected_title">Delete selected tracks?</string>
+    <string name="delete_selected_message">%1$d track(s) will be deleted from the device along with their files.</string>
+    <string name="remove_selected_message">%1$d track(s) will be removed from the playlist (files are kept).</string>
+    <string name="added_to_queue">Added to queue</string>
+
+    <string name="ytdlp_updating">Updating yt-dlp…</string>
+    <string name="ytdlp_updated">yt-dlp updated</string>
+    <string name="ytdlp_up_to_date">yt-dlp is already up to date</string>
+    <string name="ytdlp_update_error">yt-dlp update failed: %1$s</string>
 
     <!-- Player -->
-    <string name="no_track">Ничего не играет</string>
-    <string name="unknown_artist">Неизвестный исполнитель</string>
-    <string name="btn_play_pause">Играть/пауза</string>
-    <string name="btn_next">Следующий</string>
-    <string name="btn_prev">Предыдущий</string>
-    <string name="btn_shuffle">Перемешать</string>
-    <string name="btn_repeat">Повтор</string>
-    <string name="cover_desc">Обложка</string>
-    <string name="empty_queue">В этом плейлисте пока пусто.\nСкачай что-нибудь через боковое меню!</string>
+    <string name="no_track">Nothing is playing</string>
+    <string name="unknown_artist">Unknown artist</string>
+    <string name="btn_play_pause">Play/pause</string>
+    <string name="btn_next">Next</string>
+    <string name="btn_prev">Previous</string>
+    <string name="btn_shuffle">Shuffle</string>
+    <string name="btn_repeat">Repeat</string>
+    <string name="cover_desc">Cover art</string>
+    <string name="empty_queue">This playlist is empty.\nDownload something from the side menu!</string>
 
     <!-- Download screen -->
-    <string name="download_title">Скачать с YouTube</string>
-    <string name="url_hint">Ссылка на видео или плейлист YouTube</string>
-    <string name="playlist_hint">Плейлист (папка)</string>
-    <string name="btn_download">Скачать</string>
-    <string name="error_empty_url">Вставь ссылку на YouTube</string>
-    <string name="error_invalid_url">Это не похоже на ссылку YouTube</string>
-    <string name="download_queued">Добавлено в очередь загрузки</string>
-    <string name="whole_playlist">Скачать весь плейлист</string>
-    <string name="downloads_header">Загрузки</string>
+    <string name="download_title">Download from YouTube</string>
+    <string name="url_hint">YouTube video or playlist link</string>
+    <string name="playlist_hint">Playlist (folder)</string>
+    <string name="btn_download">Download</string>
+    <string name="error_empty_url">Paste a YouTube link</string>
+    <string name="error_invalid_url">This does not look like a YouTube link</string>
+    <string name="download_queued">Added to download queue</string>
+    <string name="whole_playlist">Download the whole playlist</string>
+    <string name="downloads_header">Downloads</string>
 
-    <!-- Download notifications -->
-    <string name="channel_downloads">Загрузки</string>
-    <string name="channel_playback">Воспроизведение</string>
-    <string name="notif_downloading">Скачиваю: %1$s</string>
-    <string name="notif_download_playlist_progress">Трек %1$d из %2$d</string>
-    <string name="notif_download_done">Скачано: %1$s</string>
-    <string name="notif_download_failed">Ошибка: %1$s</string>
-    <string name="notif_download_summary">Готово: %1$d, ошибок: %2$d</string>
-    <string name="btn_cancel">Отмена</string>
+    <!-- Download notifications / statuses -->
+    <string name="channel_downloads">Downloads</string>
+    <string name="channel_playback">Playback</string>
+    <string name="notif_downloading">Downloading: %1$s</string>
+    <string name="notif_download_playlist_progress">Track %1$d of %2$d</string>
+    <string name="notif_download_done">Downloaded: %1$s</string>
+    <string name="notif_download_failed">Failed: %1$s</string>
+    <string name="notif_download_summary">Done: %1$d, failed: %2$d</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_pause_download">Pause</string>
+    <string name="btn_resume_download">Resume</string>
+    <string name="status_paused">Paused</string>
+    <string name="status_queued">Queued</string>
+    <string name="status_fetching_info">Fetching info…</string>
+    <string name="status_done">Done · %1$s</string>
+    <string name="status_done_errors">Done, failed: %1$d</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_canceled">Canceled</string>
+    <string name="error_playlist_empty">No videos found in the playlist</string>
+    <string name="error_engine_init">yt-dlp failed to initialize</string>
+    <string name="unit_kb">%1$s KB</string>
+    <string name="unit_mb">%1$s MB</string>
+
+    <!-- Sorting -->
+    <string name="sort_title">Sort by…</string>
+    <string name="sort_by_title">Title</string>
+    <string name="sort_by_artist">Artist</string>
+    <string name="sort_by_filename">File name</string>
+    <string name="sort_by_duration">Duration</string>
+    <string name="sort_by_date_added">Date added</string>
+    <string name="sort_shuffle">Shuffle</string>
+    <string name="sort_reverse">Reverse order</string>
+
+    <!-- Playlist deletion -->
+    <string name="delete_playlist_title">Delete playlist?</string>
+    <string name="delete_playlist_message">"%1$s": %2$d track(s) will be deleted from the device along with their files.</string>
+    <string name="playlist_deleted">Playlist deleted</string>
+
+    <!-- Playlist refresh -->
+    <string name="refresh_playlist">Refresh playlist</string>
+    <string name="refresh_started">Checking the playlist for new tracks…</string>
+    <string name="refresh_no_source">This playlist is not linked to a YouTube playlist</string>
+    <string name="failed_tracks_header">Failed to download:</string>
 
     <!-- Misc -->
-    <string name="track_deleted">Трек удалён</string>
-    <string name="delete_track_title">Удалить трек?</string>
-    <string name="delete_track_message">«%1$s» будет удалён вместе с файлом.</string>
-    <string name="btn_delete">Удалить</string>
-    <string name="ytdlp_not_ready">yt-dlp ещё инициализируется, попробуй через пару секунд</string>
+    <string name="menu_playlists_header">Playlists</string>
+    <string name="track_deleted">Track deleted</string>
+    <string name="delete_track_title">Delete track?</string>
+    <string name="delete_track_message">"%1$s" will be deleted along with its file.</string>
+    <string name="btn_delete">Delete</string>
+    <string name="ytdlp_not_ready">yt-dlp is still initializing, try again in a few seconds</string>
 </resources>

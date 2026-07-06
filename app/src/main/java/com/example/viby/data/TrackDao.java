@@ -18,6 +18,9 @@ public interface TrackDao {
     @Update
     void update(Track track);
 
+    @Update
+    void updateAll(List<Track> tracks);
+
     @Delete
     void delete(Track track);
 
