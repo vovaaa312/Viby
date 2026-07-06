@@ -108,6 +108,14 @@
     <string name="refresh_started">Проверяю плейлист на новые треки…</string>
     <string name="refresh_no_source">Этот плейлист не привязан к плейлисту YouTube</string>
     <string name="failed_tracks_header">Не удалось скачать:</string>
+    <string name="search_hint">Поиск по трекам</string>
+
+    <!-- Add tracks -->
+    <string name="add_tracks_title">Добавить треки</string>
+    <string name="add_from_files">Из файлов на устройстве</string>
+    <string name="add_from_url">По ссылке YouTube (один трек)</string>
+    <string name="tracks_added">Добавлено: %1$d</string>
+    <string name="importing_tracks">Импортирую…</string>
 
     <!-- Misc -->
     <string name="menu_playlists_header">Плейлисты</string>

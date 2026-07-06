@@ -32,8 +32,11 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
     }
 
     private final Listener listener;
+    /** Полный список плейлиста; tracks — то, что видно после фильтра поиска. */
+    private final List<Track> allTracks = new ArrayList<>();
     private final List<Track> tracks = new ArrayList<>();
     private final Set<Long> selectedIds = new HashSet<>();
+    private String query = "";
     private boolean selectionMode;
     private long currentTrackId = -1;
 
@@ -42,8 +45,8 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
     }
 
     public void submit(List<Track> newTracks) {
-        tracks.clear();
-        tracks.addAll(newTracks);
+        allTracks.clear();
+        allTracks.addAll(newTracks);
         if (selectionMode) {
             // выкидываем из выбора треки, которых больше нет
             Set<Long> alive = new HashSet<>();
@@ -52,6 +55,30 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             }
             selectedIds.retainAll(alive);
             listener.onSelectionChanged(selectedIds.size());
+        }
+        applyFilter();
+    }
+
+    /** Фильтр строки поиска: по названию и исполнителю. */
+    public void setQuery(String newQuery) {
+        query = newQuery != null
+                ? newQuery.trim().toLowerCase(java.util.Locale.getDefault()) : "";
+        applyFilter();
+    }
+
+    private void applyFilter() {
+        tracks.clear();
+        if (query.isEmpty()) {
+            tracks.addAll(allTracks);
+        } else {
+            for (Track track : allTracks) {
+                String title = track.title.toLowerCase(java.util.Locale.getDefault());
+                String artist = track.uploader != null
+                        ? track.uploader.toLowerCase(java.util.Locale.getDefault()) : "";
+                if (title.contains(query) || artist.contains(query)) {
+                    tracks.add(track);
+                }
+            }
         }
         notifyDataSetChanged();
     }
@@ -107,7 +134,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
 
     public List<Track> getSelectedTracks() {
         List<Track> selected = new ArrayList<>();
-        for (Track track : tracks) {
+        for (Track track : allTracks) {
             if (selectedIds.contains(track.id)) {
                 selected.add(track);
             }

@@ -58,6 +58,7 @@ public class DownloadService extends Service {
     public static final String EXTRA_URL = "url";
     public static final String EXTRA_PLAYLIST = "playlist";
     public static final String EXTRA_IS_PLAYLIST = "is_playlist";
+    public static final String EXTRA_PENDING_ID = "pending_id";
 
     private static final int NOTIF_PROGRESS_ID = 1;
     private static final int ENGINE_WAIT_SECONDS = 60;
@@ -85,6 +86,31 @@ public class DownloadService extends Service {
 
     public static void sendAction(Context context, String action) {
         context.startService(new Intent(context, DownloadService.class).setAction(action));
+    }
+
+    /**
+     * Восстановить незавершённые загрузки после краша/перезагрузки/обновления.
+     * Уже скачанные треки плейлистов пропускаются, так что докачка продолжается
+     * ровно с того места, где остановилась.
+     */
+    public static void restorePending(Context context) {
+        Context app = context.getApplicationContext();
+        VibyDatabase.dbExecutor.execute(() -> {
+            for (com.example.viby.data.PendingDownload pending :
+                    VibyDatabase.get(app).pendingDownloadDao().getAllSync()) {
+                Intent intent = new Intent(app, DownloadService.class)
+                        .setAction(ACTION_ENQUEUE)
+                        .putExtra(EXTRA_URL, pending.url)
+                        .putExtra(EXTRA_PLAYLIST, pending.playlistName)
+                        .putExtra(EXTRA_IS_PLAYLIST, pending.isPlaylist)
+                        .putExtra(EXTRA_PENDING_ID, pending.id);
+                try {
+                    ContextCompat.startForegroundService(app, intent);
+                } catch (Exception e) {
+                    Log.w(TAG, "restore enqueue failed", e);
+                }
+            }
+        });
     }
 
     private final List<DownloadJob> jobs = new ArrayList<>();
@@ -125,8 +151,14 @@ public class DownloadService extends Service {
                 String url = intent.getStringExtra(EXTRA_URL);
                 String playlist = intent.getStringExtra(EXTRA_PLAYLIST);
                 boolean isPlaylist = intent.getBooleanExtra(EXTRA_IS_PLAYLIST, false);
-                if (url != null && !url.trim().isEmpty()) {
+                long pendingId = intent.getLongExtra(EXTRA_PENDING_ID, 0L);
+                if (url != null && !url.trim().isEmpty()
+                        && !hasActiveJob(url.trim(), playlist)) {
                     DownloadJob job = new DownloadJob(url.trim(), playlist, isPlaylist);
+                    job.pendingId = pendingId;
+                    if (pendingId == 0) {
+                        persistPending(job);
+                    }
                     synchronized (jobs) {
                         jobs.add(job);
                     }
@@ -170,6 +202,7 @@ public class DownloadService extends Service {
             job.error = shortError(e);
         } finally {
             activeJob = null;
+            removePending(job); // задание завершилось — восстанавливать больше нечего
             publish(true);
             postResultNotification(job);
             if (pendingCount.decrementAndGet() == 0) {
@@ -177,6 +210,39 @@ public class DownloadService extends Service {
                 stopSelf();
             }
         }
+    }
+
+    private boolean hasActiveJob(String url, @Nullable String playlist) {
+        synchronized (jobs) {
+            for (DownloadJob job : jobs) {
+                if (job.isActive() && job.url.equals(url)
+                        && java.util.Objects.equals(job.playlistName, playlist)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void persistPending(DownloadJob job) {
+        VibyDatabase.dbExecutor.execute(() -> {
+            com.example.viby.data.PendingDownload pending =
+                    new com.example.viby.data.PendingDownload();
+            pending.url = job.url;
+            pending.playlistName = job.playlistName;
+            pending.isPlaylist = job.isPlaylist;
+            pending.createdAt = System.currentTimeMillis();
+            job.pendingId = VibyDatabase.get(this).pendingDownloadDao().insert(pending);
+        });
+    }
+
+    private void removePending(DownloadJob job) {
+        // dbExecutor последовательный: insert из persistPending выполнится раньше
+        VibyDatabase.dbExecutor.execute(() -> {
+            if (job.pendingId != 0) {
+                VibyDatabase.get(this).pendingDownloadDao().delete(job.pendingId);
+            }
+        });
     }
 
     private void runSingleJob(DownloadJob job) throws Exception {

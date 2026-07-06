@@ -55,6 +55,13 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
 
     private OnBackPressedCallback backCallback;
 
+    /** Проводник для импорта аудиофайлов в текущий плейлист. */
+    private final androidx.activity.result.ActivityResultLauncher<String[]> filePicker =
+            registerForActivityResult(
+                    new androidx.activity.result.contract.ActivityResultContracts
+                            .OpenMultipleDocuments(),
+                    this::importFiles);
+
     private final Player.Listener playerListener = new Player.Listener() {
         @Override
         public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
@@ -116,6 +123,23 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         selectionClose.setOnClickListener(v -> exitSelection());
 
         view.findViewById(R.id.refreshPlaylist).setOnClickListener(v -> refreshPlaylist());
+        view.findViewById(R.id.addTracks).setOnClickListener(v -> showAddTracksDialog());
+
+        android.widget.EditText searchInput = view.findViewById(R.id.searchInput);
+        searchInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                adapter.setQuery(s.toString());
+            }
+        });
 
         backCallback = new OnBackPressedCallback(false) {
             @Override
@@ -233,7 +257,8 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
 
     @Override
     public void onTrackClick(Track track, int position) {
-        ((MainActivity) requireActivity()).playTrack(track, position);
+        // position — индекс в отфильтрованном списке; реальный ищем по id
+        playFromList(track);
     }
 
     @Override
@@ -273,6 +298,154 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                 }
             });
         });
+    }
+
+    // ---------------------------------------------------------- add tracks
+
+    private void showAddTracksDialog() {
+        String[] options = {
+                getString(R.string.add_from_files),
+                getString(R.string.add_from_url),
+        };
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.add_tracks_title)
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        filePicker.launch(new String[]{"audio/*"});
+                    } else {
+                        showAddByUrlDialog();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void showAddByUrlDialog() {
+        android.widget.EditText input = new android.widget.EditText(requireContext());
+        input.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        input.setHint(R.string.url_hint);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.add_from_url)
+                .setView(input)
+                .setPositiveButton(R.string.btn_download, (dialog, which) -> {
+                    String url = input.getText().toString().trim();
+                    String playlist = viewModel.getActivePlaylistName();
+                    if (url.contains("youtube.com/") || url.contains("youtu.be/")) {
+                        com.example.viby.download.DownloadService.enqueue(
+                                requireContext(), url, playlist, false);
+                        android.widget.Toast.makeText(requireContext(),
+                                R.string.download_queued,
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    } else {
+                        android.widget.Toast.makeText(requireContext(),
+                                R.string.error_invalid_url,
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Копирует выбранные аудиофайлы в папку плейлиста и добавляет их в базу. */
+    private void importFiles(java.util.List<android.net.Uri> uris) {
+        if (uris == null || uris.isEmpty()) {
+            return;
+        }
+        String playlist = viewModel.getActivePlaylistName();
+        if (playlist == null) {
+            return;
+        }
+        android.content.Context app = requireContext().getApplicationContext();
+        android.widget.Toast.makeText(app, R.string.importing_tracks,
+                android.widget.Toast.LENGTH_SHORT).show();
+        com.example.viby.data.VibyDatabase.dbExecutor.execute(() -> {
+            var dao = com.example.viby.data.VibyDatabase.get(app).trackDao();
+            java.io.File dir = com.example.viby.util.StorageHelper.playlistDir(app, playlist);
+            int added = 0;
+            for (android.net.Uri uri : uris) {
+                try {
+                    String name = displayName(app, uri);
+                    java.io.File dest = new java.io.File(dir,
+                            com.example.viby.util.StorageHelper.sanitize(name));
+                    if (dest.exists()) {
+                        dest = new java.io.File(dir,
+                                System.currentTimeMillis() + " " + dest.getName());
+                    }
+                    try (java.io.InputStream in =
+                                 app.getContentResolver().openInputStream(uri);
+                         java.io.OutputStream out = new java.io.FileOutputStream(dest)) {
+                        byte[] buffer = new byte[64 * 1024];
+                        int read;
+                        while ((read = in.read(buffer)) > 0) {
+                            out.write(buffer, 0, read);
+                        }
+                    }
+
+                    String title = null;
+                    String artist = null;
+                    long durationMs = 0;
+                    android.media.MediaMetadataRetriever retriever =
+                            new android.media.MediaMetadataRetriever();
+                    try {
+                        retriever.setDataSource(dest.getAbsolutePath());
+                        title = retriever.extractMetadata(
+                                android.media.MediaMetadataRetriever.METADATA_KEY_TITLE);
+                        artist = retriever.extractMetadata(
+                                android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST);
+                        String duration = retriever.extractMetadata(
+                                android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+                        if (duration != null) {
+                            durationMs = Long.parseLong(duration);
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        try {
+                            retriever.release();
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    Track track = new Track();
+                    track.title = title != null && !title.isEmpty()
+                            ? title : stripExtension(dest.getName());
+                    track.uploader = artist;
+                    track.durationMs = durationMs;
+                    track.filePath = dest.getAbsolutePath();
+                    track.playlistName = playlist;
+                    track.position = dao.nextPosition(playlist);
+                    track.createdAt = System.currentTimeMillis();
+                    dao.insert(track);
+                    added++;
+                } catch (Exception e) {
+                    android.util.Log.w("QueueFragment", "import failed: " + uri, e);
+                }
+            }
+            int total = added;
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(app,
+                            app.getString(R.string.tracks_added, total),
+                            android.widget.Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    private static String displayName(android.content.Context context, android.net.Uri uri) {
+        try (android.database.Cursor cursor = context.getContentResolver().query(
+                uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME},
+                null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String name = cursor.getString(0);
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "track_" + System.currentTimeMillis() + ".mp3";
+    }
+
+    private static String stripExtension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
     }
 
     private void playFromList(Track track) {
