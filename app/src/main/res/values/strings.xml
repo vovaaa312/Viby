@@ -117,6 +117,17 @@
     <string name="tracks_added">Added: %1$d</string>
     <string name="importing_tracks">Importing…</string>
 
+    <!-- YouTube account -->
+    <string name="menu_account">YouTube account</string>
+    <string name="login_title">Sign in to YouTube</string>
+    <string name="login_success">Signed in! Age-restricted downloads and your playlists are now available</string>
+    <string name="account_my_playlists">My YouTube playlists</string>
+    <string name="account_logout">Sign out</string>
+    <string name="logged_out">Signed out</string>
+    <string name="yt_playlists_title">My YouTube playlists</string>
+    <string name="yt_playlists_error">Could not load playlists. The session may have expired.</string>
+    <string name="yt_playlists_relogin">Sign in again</string>
+
     <!-- Misc -->
     <string name="menu_playlists_header">Playlists</string>
     <string name="track_deleted">Track deleted</string>

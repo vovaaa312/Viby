@@ -212,6 +212,14 @@ public class DownloadService extends Service {
         }
     }
 
+    /** Куки залогиненного аккаунта — снимают возрастные ограничения. */
+    private void applyCookies(YoutubeDLRequest request) {
+        if (com.example.viby.util.YtCookies.isLoggedIn(this)) {
+            request.addOption("--cookies",
+                    com.example.viby.util.YtCookies.file(this).getAbsolutePath());
+        }
+    }
+
     private boolean hasActiveJob(String url, @Nullable String playlist) {
         synchronized (jobs) {
             for (DownloadJob job : jobs) {
@@ -250,7 +258,9 @@ public class DownloadService extends Service {
         publish(true);
         updateProgressNotification(job);
 
-        VideoInfo info = YoutubeDL.getInstance().getInfo(job.url);
+        YoutubeDLRequest infoRequest = new YoutubeDLRequest(job.url);
+        applyCookies(infoRequest);
+        VideoInfo info = YoutubeDL.getInstance().getInfo(infoRequest);
         String videoId = info.getId();
         String title = info.getTitle() != null ? info.getTitle() : job.url;
         job.title = title;
@@ -280,6 +290,7 @@ public class DownloadService extends Service {
         infoRequest.addOption("--flat-playlist");
         infoRequest.addOption("--dump-single-json");
         infoRequest.addOption("--no-warnings");
+        applyCookies(infoRequest);
         String processId = "job-" + job.id + "-info";
         activeProcessId = processId;
         YoutubeDLResponse response =
@@ -441,6 +452,7 @@ public class DownloadService extends Service {
         request.addOption("--embed-metadata");
         request.addOption("--no-mtime");
         request.addOption("-o", template);
+        applyCookies(request);
 
         String processId = "job-" + job.id;
         activeProcessId = processId;
