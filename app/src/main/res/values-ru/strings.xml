@@ -117,6 +117,17 @@
     <string name="tracks_added">Добавлено: %1$d</string>
     <string name="importing_tracks">Импортирую…</string>
 
+    <!-- YouTube account -->
+    <string name="menu_account">Аккаунт YouTube</string>
+    <string name="login_title">Вход в YouTube</string>
+    <string name="login_success">Вход выполнен! Возрастные загрузки и твои плейлисты теперь доступны</string>
+    <string name="account_my_playlists">Мои плейлисты YouTube</string>
+    <string name="account_logout">Выйти из аккаунта</string>
+    <string name="logged_out">Вышел из аккаунта</string>
+    <string name="yt_playlists_title">Мои плейлисты YouTube</string>
+    <string name="yt_playlists_error">Не удалось загрузить плейлисты. Возможно, сессия протухла.</string>
+    <string name="yt_playlists_relogin">Войти заново</string>
+
     <!-- Misc -->
     <string name="menu_playlists_header">Плейлисты</string>
     <string name="track_deleted">Трек удалён</string>

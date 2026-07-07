@@ -102,6 +102,31 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(this, EqualizerActivity.class));
         });
 
+        findViewById(R.id.drawerAccount).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            if (!com.example.viby.util.YtCookies.isLoggedIn(this)) {
+                startActivity(new Intent(this, YoutubeLoginActivity.class));
+                return;
+            }
+            String[] options = {
+                    getString(R.string.account_my_playlists),
+                    getString(R.string.account_logout),
+            };
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.menu_account)
+                    .setItems(options, (dialog, which) -> {
+                        if (which == 0) {
+                            startActivity(new Intent(this, YoutubePlaylistsActivity.class));
+                        } else {
+                            com.example.viby.util.YtCookies.clear(this);
+                            Toast.makeText(this, R.string.logged_out,
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        });
+
         RecyclerView playlistsList = findViewById(R.id.playlistsList);
         PlaylistsAdapter adapter = new PlaylistsAdapter(new PlaylistsAdapter.Listener() {
             @Override
