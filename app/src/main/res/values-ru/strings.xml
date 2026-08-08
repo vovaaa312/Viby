@@ -120,6 +120,7 @@
 
     <!-- Sorting -->
     <string name="sort_title">Сортировать по…</string>
+    <string name="sort_as_on_youtube">Как на YouTube</string>
     <string name="sort_by_title">Названию</string>
     <string name="sort_by_artist">Артисту</string>
     <string name="sort_by_filename">Имени файла</string>
