@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.viby.R;
 import com.example.viby.playback.EqFx;
+import com.example.viby.ui.widget.EqualizerCurveView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -24,19 +25,27 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Звуковые эффекты: 10-полосный эквалайзер как в AIMP с горизонтальными
- * ползунками, встроенными и пользовательскими пресетами.
+ * Звуковые эффекты: компактный 20-полосный эквалайзер на частотной сетке AIMP
+ * со встроенными и пользовательскими пресетами.
  */
 public class EqualizerActivity extends AppCompatActivity {
 
     /** Ползунок: 0..300 → -15.0..+15.0 дБ (шаг 0.1). */
     private static final int SLIDER_MAX = (int) (EqFx.MAX_GAIN_DB * 2 * 10);
+    private static final long AVAILABILITY_RETRY_MS = 100L;
+    private static final int MAX_AVAILABILITY_RETRIES = 30;
 
     private Button presetButton;
+    private Button savePresetButton;
     private TextView preampValueLabel;
+    private TextView unavailable;
     private SeekBar preampSlider;
-    private TextView[] valueLabels;
-    private SeekBar[] sliders;
+    private MaterialSwitch eqSwitch;
+    private LinearLayout bandsContainer;
+    private EqualizerCurveView curveView;
+    private boolean controlsInitialized;
+    private int availabilityRetries;
+    private final Runnable availabilityCheck = this::checkAvailability;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -46,20 +55,53 @@ public class EqualizerActivity extends AppCompatActivity {
         MaterialToolbar toolbar = findViewById(R.id.eqToolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
 
-        LinearLayout bandsContainer = findViewById(R.id.bandsContainer);
+        bandsContainer = findViewById(R.id.bandsContainer);
         presetButton = findViewById(R.id.presetButton);
-        Button savePresetButton = findViewById(R.id.savePresetButton);
-        MaterialSwitch eqSwitch = findViewById(R.id.eqSwitch);
-        TextView unavailable = findViewById(R.id.eqUnavailable);
+        savePresetButton = findViewById(R.id.savePresetButton);
+        eqSwitch = findViewById(R.id.eqSwitch);
+        unavailable = findViewById(R.id.eqUnavailable);
+    }
 
-        if (!EqFx.isAvailable()) {
-            unavailable.setVisibility(View.VISIBLE);
-            eqSwitch.setEnabled(false);
-            presetButton.setEnabled(false);
-            savePresetButton.setEnabled(false);
+    @Override
+    protected void onResume() {
+        super.onResume();
+        availabilityRetries = 0;
+        checkAvailability();
+    }
+
+    @Override
+    protected void onPause() {
+        unavailable.removeCallbacks(availabilityCheck);
+        super.onPause();
+    }
+
+    private void checkAvailability() {
+        unavailable.removeCallbacks(availabilityCheck);
+        if (EqFx.isAvailable()) {
+            unavailable.setVisibility(View.GONE);
+            setHeaderControlsEnabled(true);
+            if (!controlsInitialized) {
+                initializeControls();
+            } else {
+                eqSwitch.setChecked(EqFx.isEnabled());
+                refreshSliders();
+            }
             return;
         }
 
+        setHeaderControlsEnabled(false);
+        if (availabilityRetries++ < MAX_AVAILABILITY_RETRIES) {
+            // A theme switch can recreate the activity just before PlaybackService
+            // reconnects the audio effect. Do not show a false error during that window.
+            unavailable.setVisibility(View.GONE);
+            unavailable.postDelayed(availabilityCheck, AVAILABILITY_RETRY_MS);
+        } else {
+            unavailable.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void initializeControls() {
+        controlsInitialized = true;
         eqSwitch.setChecked(EqFx.isEnabled());
         eqSwitch.setOnCheckedChangeListener((btn, checked) -> EqFx.setEnabled(checked));
 
@@ -68,7 +110,13 @@ public class EqualizerActivity extends AppCompatActivity {
         updatePresetButton();
 
         buildPreamp(bandsContainer);
-        buildBands(bandsContainer);
+        buildCurve(bandsContainer);
+    }
+
+    private void setHeaderControlsEnabled(boolean enabled) {
+        eqSwitch.setEnabled(enabled);
+        presetButton.setEnabled(enabled);
+        savePresetButton.setEnabled(enabled);
     }
 
     private void buildPreamp(LinearLayout container) {
@@ -120,64 +168,24 @@ public class EqualizerActivity extends AppCompatActivity {
         updatePreampValueLabel();
     }
 
-    private void buildBands(LinearLayout container) {
+    private void buildCurve(LinearLayout container) {
         int bands = EqFx.getBandCount();
-        valueLabels = new TextView[bands];
-        sliders = new SeekBar[bands];
         float density = getResources().getDisplayMetrics().density;
-
+        float[] gains = new float[bands];
         for (int band = 0; band < bands; band++) {
-            final int b = band;
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, (int) (6 * density), 0, (int) (6 * density));
-
-            TextView freq = new TextView(this);
-            freq.setText(formatFreq(EqFx.getCenterFreqHz(b)));
-            freq.setGravity(Gravity.END);
-            freq.setTextSize(13);
-            row.addView(freq, new LinearLayout.LayoutParams(
-                    (int) (52 * density), LinearLayout.LayoutParams.WRAP_CONTENT));
-
-            SeekBar slider = new SeekBar(this);
-            slider.setMax(SLIDER_MAX);
-            slider.setProgress(gainToProgress(EqFx.getBandGainDb(b)));
-            slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                    if (fromUser) {
-                        EqFx.setBandGainDb(b, progressToGain(progress));
-                        updatePresetButton();
-                    }
-                    updateValueLabel(b);
-                }
-
-                @Override
-                public void onStartTrackingTouch(SeekBar bar) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(SeekBar bar) {
-                }
-            });
-            sliders[band] = slider;
-            LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            sliderParams.setMarginStart((int) (8 * density));
-            row.addView(slider, sliderParams);
-
-            TextView value = new TextView(this);
-            value.setGravity(Gravity.END);
-            value.setTextSize(13);
-            valueLabels[band] = value;
-            row.addView(value, new LinearLayout.LayoutParams(
-                    (int) (64 * density), LinearLayout.LayoutParams.WRAP_CONTENT));
-
-            container.addView(row);
-            updateValueLabel(b);
+            gains[band] = EqFx.getBandGainDb(band);
         }
+        curveView = new EqualizerCurveView(this);
+        curveView.setGains(gains);
+        curveView.setOnBandGainChangeListener((band, gainDb) -> {
+            EqFx.setBandGainDb(band, gainDb);
+            updatePresetButton();
+        });
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.topMargin = (int) (4 * density);
+        container.addView(curveView, params);
     }
 
     private void showPresetDialog() {
@@ -228,20 +236,16 @@ public class EqualizerActivity extends AppCompatActivity {
     private void refreshSliders() {
         preampSlider.setProgress(gainToProgress(EqFx.getPreampGainDb()));
         updatePreampValueLabel();
-        for (int band = 0; band < sliders.length; band++) {
-            sliders[band].setProgress(gainToProgress(EqFx.getBandGainDb(band)));
-            updateValueLabel(band);
+        float[] gains = new float[EqFx.getBandCount()];
+        for (int band = 0; band < gains.length; band++) {
+            gains[band] = EqFx.getBandGainDb(band);
         }
+        curveView.setGains(gains);
     }
 
     private void updatePreampValueLabel() {
         preampValueLabel.setText(String.format(Locale.US, "%+.1f dB",
                 EqFx.getPreampGainDb()));
-    }
-
-    private void updateValueLabel(int band) {
-        valueLabels[band].setText(String.format(Locale.US, "%+.1f dB",
-                EqFx.getBandGainDb(band)));
     }
 
     private void updatePresetButton() {
@@ -258,11 +262,4 @@ public class EqualizerActivity extends AppCompatActivity {
         return progress / 10f - EqFx.MAX_GAIN_DB;
     }
 
-    private static String formatFreq(int hz) {
-        if (hz >= 1000) {
-            return (hz % 1000 == 0 ? String.valueOf(hz / 1000)
-                    : String.format(Locale.US, "%.1f", hz / 1000f)) + "k";
-        }
-        return String.valueOf(hz);
-    }
 }

@@ -50,6 +50,7 @@
     <string name="eq_save_preset">Сохранить пресет…</string>
     <string name="eq_preset_name_hint">Название пресета</string>
     <string name="eq_preset_saved">Пресет сохранён</string>
+    <string name="eq_curve_content_description">Интерактивная кривая 20-полосного эквалайзера</string>
     <string name="btn_save">Сохранить</string>
 
     <!-- Context menu / multi-select -->

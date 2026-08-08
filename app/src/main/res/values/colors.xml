@@ -6,18 +6,18 @@
     <!-- Фон adaptive-иконки (цвет подложки логотипа) -->
     <color name="launcher_background">#FF020206</color>
 
-    <!-- Светлая тема: графитовый акцент с мягким белым передним планом. -->
-    <color name="viby_accent">#FF292929</color>
-    <color name="viby_accent_dark">#FF414141</color>
-    <color name="viby_on_accent">#FFF2F2F2</color>
-    <color name="viby_control_panel">#FF808080</color>
-    <color name="viby_on_control_panel">#FF161616</color>
+    <!-- Светлая тема: белая база и поверхности на 10% темнее. -->
+    <color name="viby_accent">#FF000000</color>
+    <color name="viby_accent_dark">#FFE6E6E6</color>
+    <color name="viby_on_accent">#FFFFFFFF</color>
+    <color name="viby_control_panel">#FFE6E6E6</color>
+    <color name="viby_on_control_panel">#FF000000</color>
 
     <!-- Нейтральная шкала светлой темы; инверсия — в values-night/colors.xml. -->
-    <color name="viby_bg">#FFF1F1F1</color>
-    <color name="viby_surface">#FFFAFAFA</color>
-    <color name="viby_surface_high">#FFE3E3E3</color>
-    <color name="viby_wave">#FFB8B8B8</color>
-    <color name="viby_text">#FF1D1D1D</color>
-    <color name="viby_text_secondary">#FF666666</color>
+    <color name="viby_bg">#FFFFFFFF</color>
+    <color name="viby_surface">#FFFFFFFF</color>
+    <color name="viby_surface_high">#FFE6E6E6</color>
+    <color name="viby_wave">#FFE6E6E6</color>
+    <color name="viby_text">#FF000000</color>
+    <color name="viby_text_secondary">#FF1A1A1A</color>
 </resources>

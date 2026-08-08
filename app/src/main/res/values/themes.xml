@@ -4,7 +4,7 @@
         <item name="colorPrimary">@color/viby_accent</item>
         <item name="colorOnPrimary">@color/viby_on_accent</item>
         <item name="colorPrimaryContainer">@color/viby_accent_dark</item>
-        <item name="colorOnPrimaryContainer">@color/viby_on_accent</item>
+        <item name="colorOnPrimaryContainer">@color/viby_text</item>
         <item name="colorSecondary">@color/viby_accent</item>
         <item name="colorOnSecondary">@color/viby_on_accent</item>
         <item name="colorSecondaryContainer">@color/viby_surface_high</item>
