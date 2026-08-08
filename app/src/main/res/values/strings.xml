@@ -37,6 +37,13 @@
     <string name="delete_selected_message">%1$d track(s) will be deleted from the device along with their files.</string>
     <string name="remove_selected_message">%1$d track(s) will be removed from the playlist (files are kept).</string>
     <string name="added_to_queue">Added to queue</string>
+    <string name="playback_queue_title">Playback queue</string>
+    <string name="playback_queue_hint">Hold and drag a track to reorder it</string>
+    <string name="playback_queue_empty">The playback queue is empty</string>
+    <string name="remove_from_queue">Remove from queue</string>
+    <string name="reorder_queue_item">Reorder track</string>
+    <string name="reset_playback_queue">Reset</string>
+    <string name="playback_queue_reset">Queue and shuffle have been reset</string>
 
     <string name="ytdlp_updating">Updating yt-dlp…</string>
     <string name="ytdlp_updated">yt-dlp updated</string>

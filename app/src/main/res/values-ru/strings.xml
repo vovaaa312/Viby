@@ -37,6 +37,13 @@
     <string name="delete_selected_message">%1$d трек(ов) будут удалены с устройства вместе с файлами.</string>
     <string name="remove_selected_message">%1$d трек(ов) будут убраны из плейлиста (файлы останутся).</string>
     <string name="added_to_queue">Добавлено в очередь</string>
+    <string name="playback_queue_title">Очередь воспроизведения</string>
+    <string name="playback_queue_hint">Зажмите и перетащите трек, чтобы изменить порядок</string>
+    <string name="playback_queue_empty">Очередь воспроизведения пуста</string>
+    <string name="remove_from_queue">Удалить из очереди</string>
+    <string name="reorder_queue_item">Изменить порядок трека</string>
+    <string name="reset_playback_queue">Сбросить</string>
+    <string name="playback_queue_reset">Очередь и перемешивание сброшены</string>
 
     <string name="ytdlp_updating">Обновляю yt-dlp…</string>
     <string name="ytdlp_updated">yt-dlp обновлён</string>
