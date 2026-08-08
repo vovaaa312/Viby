@@ -6,7 +6,29 @@
     <!-- Drawer -->
     <string name="menu_download">Скачать трек/плейлист</string>
     <string name="menu_update_ytdlp">Обновить yt-dlp</string>
+    <string name="menu_check_updates">Проверить обновления</string>
     <string name="menu_effects">Звуковые эффекты</string>
+
+    <!-- App updates -->
+    <string name="app_update_checking">Проверяю обновления…</string>
+    <string name="app_update_check_in_progress">Проверка обновлений уже выполняется</string>
+    <string name="app_update_available_title">Доступно обновление Viby</string>
+    <string name="app_update_available_message">Установлено: %1$s\nДоступно: %2$s</string>
+    <string name="app_update_download">Скачать</string>
+    <string name="app_update_later">Позже</string>
+    <string name="app_update_up_to_date">Установлена актуальная версия Viby %1$s</string>
+    <string name="app_update_check_error">Ошибка проверки обновлений: %1$s</string>
+    <string name="app_update_download_title">Обновление Viby %1$s</string>
+    <string name="app_update_download_description">Загрузка обновления с GitHub</string>
+    <string name="app_update_download_started">Обновление загружается. Android покажет прогресс в уведомлении.</string>
+    <string name="app_update_download_in_progress">Обновление уже загружается</string>
+    <string name="app_update_download_failed">Не удалось создать загрузку обновления</string>
+    <string name="app_update_integrity_failed">Скачанный APK не прошёл проверку целостности и был удалён</string>
+    <string name="app_update_install_permission_title">Разрешение на установку</string>
+    <string name="app_update_install_permission_message">Android должен разрешить Viby устанавливать приложения из этого источника. Включите разрешение и вернитесь в Viby.</string>
+    <string name="app_update_open_settings">Открыть настройки</string>
+    <string name="app_update_install_permission_denied">Разрешение не выдано. Можно повторить попытку из бокового меню.</string>
+    <string name="app_update_installer_unavailable">Системный установщик APK недоступен</string>
 
     <!-- Equalizer -->
     <string name="eq_title">Эквалайзер</string>

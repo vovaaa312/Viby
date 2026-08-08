@@ -30,6 +30,7 @@ import com.example.viby.VibyApp;
 import com.example.viby.data.Track;
 import com.example.viby.data.VibyDatabase;
 import com.example.viby.playback.PlaybackService;
+import com.example.viby.update.AppUpdateManager;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -45,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
     private DrawerLayout drawerLayout;
     private MaterialToolbar toolbar;
     private ViewPager2 pager;
+    private AppUpdateManager appUpdateManager;
 
     private ListenableFuture<MediaController> controllerFuture;
     /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
@@ -89,6 +91,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
         setUpDrawer();
+
+        appUpdateManager = new AppUpdateManager(this);
+        appUpdateManager.start();
 
         viewModel.getActivePlaylist().observe(this, name -> toolbar.setTitle(name));
         viewModel.tracks.observe(this, tracks -> syncQueue());
@@ -149,6 +154,11 @@ public class MainActivity extends AppCompatActivity {
         playlistsList.setAdapter(adapter);
         viewModel.playlists.observe(this, adapter::submit);
 
+        findViewById(R.id.drawerCheckUpdates).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            appUpdateManager.checkManually();
+        });
+
         findViewById(R.id.drawerUpdateYtdlp).setOnClickListener(v -> {
             drawerLayout.closeDrawers();
             Toast.makeText(this, R.string.ytdlp_updating, Toast.LENGTH_SHORT).show();
@@ -167,6 +177,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ------------------------------------------------------- media controller
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (appUpdateManager != null) {
+            appUpdateManager.onResume();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        if (appUpdateManager != null) {
+            appUpdateManager.onPause();
+        }
+        super.onPause();
+    }
 
     @Override
     protected void onStart() {
@@ -538,6 +564,15 @@ public class MainActivity extends AppCompatActivity {
         if (removed) {
             markQueueCustomized();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (appUpdateManager != null) {
+            appUpdateManager.close();
+            appUpdateManager = null;
+        }
+        super.onDestroy();
     }
 
     /** Called by queue editing UI so playlist synchronization does not undo manual changes. */
