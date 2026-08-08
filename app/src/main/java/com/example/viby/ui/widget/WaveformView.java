@@ -13,10 +13,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.viby.R;
 
-/**
- * Прогресс трека в виде волны, как в AIMP: серые столбики амплитуды,
- * проигранная часть подсвечена оранжевым. Тап/драг — перемотка.
- */
+/** YouTube-style track progress bar. Tap/drag seeks within the current track. */
 public class WaveformView extends View {
 
     public interface Listener {
@@ -29,10 +26,7 @@ public class WaveformView extends View {
 
     private final Paint playedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint unplayedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint cursorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    @Nullable
-    private float[] amps;
     private float progress; // 0..1
     private boolean dragging;
     private float dragFraction;
@@ -47,18 +41,15 @@ public class WaveformView extends View {
         super(context, attrs);
         playedPaint.setColor(ContextCompat.getColor(context, R.color.viby_accent));
         unplayedPaint.setColor(ContextCompat.getColor(context, R.color.viby_wave));
-        cursorPaint.setColor(ContextCompat.getColor(context, R.color.viby_text));
-        cursorPaint.setStrokeWidth(dp(2));
     }
 
     public void setListener(@Nullable Listener listener) {
         this.listener = listener;
     }
 
-    /** null → «волна ещё считается», рисуем плоскую линию. */
+    /** Kept for compatibility with the previous waveform-based implementation. */
     public void setWaveform(@Nullable float[] amps) {
-        this.amps = amps;
-        invalidate();
+        // The new progress bar does not use waveform amplitudes.
     }
 
     public void setProgress(float fraction) {
@@ -78,29 +69,18 @@ public class WaveformView extends View {
         }
         float shown = dragging ? dragFraction : progress;
         float centerY = getPaddingTop() + h / 2f;
+        float thumbRadius = dp(dragging ? 7f : 6f);
+        float trackHeight = dp(3f);
+        float trackStart = getPaddingLeft() + thumbRadius;
+        float trackEnd = getWidth() - getPaddingRight() - thumbRadius;
+        float trackWidth = Math.max(0f, trackEnd - trackStart);
+        float thumbX = trackStart + shown * trackWidth;
 
-        float barWidth = dp(3);
-        float gap = dp(1.5f);
-        int bars = Math.max(1, (int) ((w + gap) / (barWidth + gap)));
-        float minBar = dp(2);
-
-        for (int i = 0; i < bars; i++) {
-            float amp = 0.06f;
-            if (amps != null && amps.length > 0) {
-                int idx = (int) ((long) i * amps.length / bars);
-                amp = Math.max(amps[Math.min(idx, amps.length - 1)], 0.04f);
-            }
-            float barH = Math.max(minBar, amp * h);
-            float left = getPaddingLeft() + i * (barWidth + gap);
-            boolean played = (i + 0.5f) / bars <= shown;
-            canvas.drawRect(left, centerY - barH / 2f,
-                    left + barWidth, centerY + barH / 2f,
-                    played ? playedPaint : unplayedPaint);
-        }
-
-        float cursorX = getPaddingLeft() + shown * w;
-        canvas.drawLine(cursorX, getPaddingTop(), cursorX,
-                getPaddingTop() + h, cursorPaint);
+        canvas.drawRect(trackStart, centerY - trackHeight / 2f,
+                trackEnd, centerY + trackHeight / 2f, unplayedPaint);
+        canvas.drawRect(trackStart, centerY - trackHeight / 2f,
+                thumbX, centerY + trackHeight / 2f, playedPaint);
+        canvas.drawCircle(thumbX, centerY, thumbRadius, playedPaint);
     }
 
     @Override
@@ -134,8 +114,10 @@ public class WaveformView extends View {
     }
 
     private void updateDrag(float x) {
-        int w = getWidth() - getPaddingLeft() - getPaddingRight();
-        dragFraction = clamp((x - getPaddingLeft()) / Math.max(1, w));
+        float thumbRadius = dp(6f);
+        float trackStart = getPaddingLeft() + thumbRadius;
+        float trackEnd = getWidth() - getPaddingRight() - thumbRadius;
+        dragFraction = clamp((x - trackStart) / Math.max(1f, trackEnd - trackStart));
         if (listener != null) {
             listener.onSeekPreview(dragFraction);
         }
