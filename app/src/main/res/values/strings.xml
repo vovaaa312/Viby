@@ -22,6 +22,16 @@
     <string name="app_update_download_description">Downloading update from GitHub</string>
     <string name="app_update_download_started">The update is downloading. Android will show its progress in notifications.</string>
     <string name="app_update_download_in_progress">The update is already downloading</string>
+    <string name="app_update_download_progress">Update download: %1$s</string>
+    <string name="app_update_download_paused_title">Update download paused</string>
+    <string name="app_update_download_paused_message">%1$s\nDownloaded: %2$s</string>
+    <string name="app_update_download_restart">Restart download</string>
+    <string name="app_update_download_wait">Wait</string>
+    <string name="app_update_paused_waiting_retry">Android is waiting to retry because of a network or system restriction.</string>
+    <string name="app_update_paused_waiting_network">Waiting for a network connection.</string>
+    <string name="app_update_paused_waiting_wifi">Waiting for Wi-Fi.</string>
+    <string name="app_update_paused_unknown">Android paused the download for an unknown reason.</string>
+    <string name="app_update_download_stale">The stalled update download was reset. You can start it again.</string>
     <string name="app_update_download_failed">Could not create the update download</string>
     <string name="app_update_integrity_failed">The downloaded APK failed its integrity check and was deleted</string>
     <string name="app_update_install_permission_title">Allow update installation</string>

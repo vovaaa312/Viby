@@ -22,6 +22,16 @@
     <string name="app_update_download_description">Загрузка обновления с GitHub</string>
     <string name="app_update_download_started">Обновление загружается. Android покажет прогресс в уведомлении.</string>
     <string name="app_update_download_in_progress">Обновление уже загружается</string>
+    <string name="app_update_download_progress">Загрузка обновления: %1$s</string>
+    <string name="app_update_download_paused_title">Загрузка обновления приостановлена</string>
+    <string name="app_update_download_paused_message">%1$s\nЗагружено: %2$s</string>
+    <string name="app_update_download_restart">Перезапустить</string>
+    <string name="app_update_download_wait">Подождать</string>
+    <string name="app_update_paused_waiting_retry">Android ожидает повторной попытки из-за сети или системного ограничения.</string>
+    <string name="app_update_paused_waiting_network">Ожидание подключения к сети.</string>
+    <string name="app_update_paused_waiting_wifi">Ожидание подключения к Wi-Fi.</string>
+    <string name="app_update_paused_unknown">Android приостановил загрузку по неизвестной причине.</string>
+    <string name="app_update_download_stale">Зависшая загрузка обновления сброшена. Её можно запустить заново.</string>
     <string name="app_update_download_failed">Не удалось создать загрузку обновления</string>
     <string name="app_update_integrity_failed">Скачанный APK не прошёл проверку целостности и был удалён</string>
     <string name="app_update_install_permission_title">Разрешение на установку</string>

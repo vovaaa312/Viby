@@ -54,8 +54,10 @@ public final class AppUpdateManager implements AutoCloseable {
     private static final String KEY_DOWNLOAD_ID = "download_id";
     private static final String KEY_DOWNLOAD_VERSION = "download_version";
     private static final String KEY_DOWNLOAD_DIGEST = "download_digest";
+    private static final String KEY_DOWNLOAD_STARTED_AT = "download_started_at";
     private static final long NO_DOWNLOAD = -1L;
     private static final long AUTO_CHECK_INTERVAL_MS = TimeUnit.DAYS.toMillis(1);
+    private static final long STALE_PAUSED_DOWNLOAD_MS = TimeUnit.MINUTES.toMillis(15);
     private static final String APK_MIME = "application/vnd.android.package-archive";
 
     private final AppCompatActivity activity;
@@ -155,7 +157,11 @@ public final class AppUpdateManager implements AutoCloseable {
     }
 
     private void checkForUpdates(boolean manual) {
-        if (!manual) {
+        checkForUpdates(manual, false);
+    }
+
+    private void checkForUpdates(boolean manual, boolean bypassThrottle) {
+        if (!manual && !bypassThrottle) {
             long lastCheck = prefs.getLong(KEY_LAST_CHECK, 0L);
             if (System.currentTimeMillis() - lastCheck < AUTO_CHECK_INTERVAL_MS) {
                 return;
@@ -237,18 +243,24 @@ public final class AppUpdateManager implements AutoCloseable {
         long existingId = prefs.getLong(KEY_DOWNLOAD_ID, NO_DOWNLOAD);
         String existingVersion = prefs.getString(KEY_DOWNLOAD_VERSION, "");
         if (existingId != NO_DOWNLOAD && release.tagName.equals(existingVersion)) {
-            int status = queryStatus(existingId);
-            if (status == DownloadManager.STATUS_PENDING
-                    || status == DownloadManager.STATUS_RUNNING
-                    || status == DownloadManager.STATUS_PAUSED) {
-                Toast.makeText(activity, R.string.app_update_download_in_progress,
+            DownloadState state = queryDownload(existingId);
+            if (state != null && state.status == DownloadManager.STATUS_PAUSED) {
+                showPausedDownloadDialog(release, existingId, state);
+                return;
+            }
+            if (state != null && (state.status == DownloadManager.STATUS_PENDING
+                    || state.status == DownloadManager.STATUS_RUNNING)) {
+                Toast.makeText(activity,
+                        activity.getString(R.string.app_update_download_progress,
+                                formatProgress(state)),
                         Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+            if (state != null && state.status == DownloadManager.STATUS_SUCCESSFUL) {
                 processCompletedDownload(true);
                 return;
             }
+            downloadManager.remove(existingId);
             clearPendingDownload();
         }
 
@@ -282,6 +294,7 @@ public final class AppUpdateManager implements AutoCloseable {
                     .putLong(KEY_DOWNLOAD_ID, downloadId)
                     .putString(KEY_DOWNLOAD_VERSION, release.tagName)
                     .putString(KEY_DOWNLOAD_DIGEST, release.digest)
+                    .putLong(KEY_DOWNLOAD_STARTED_AT, System.currentTimeMillis())
                     .apply();
             Toast.makeText(activity, R.string.app_update_download_started,
                     Toast.LENGTH_LONG).show();
@@ -308,25 +321,91 @@ public final class AppUpdateManager implements AutoCloseable {
             Log.w(TAG, "Could not inspect pending update", e);
         }
 
-        int status = queryStatus(downloadId);
-        if (status == DownloadManager.STATUS_SUCCESSFUL) {
+        DownloadState state = queryDownload(downloadId);
+        if (state != null && state.status == DownloadManager.STATUS_SUCCESSFUL) {
             processCompletedDownload(false);
-        } else if (status == DownloadManager.STATUS_FAILED || status == -1) {
+        } else if (state == null || state.status == DownloadManager.STATUS_FAILED) {
             clearPendingDownload();
-            checkForUpdates(false);
+            checkForUpdates(false, true);
+        } else if (state.status == DownloadManager.STATUS_PAUSED
+                && isStalePausedDownload(state)) {
+            downloadManager.remove(downloadId);
+            clearPendingDownload();
+            if (activityResumed) {
+                Toast.makeText(activity, R.string.app_update_download_stale,
+                        Toast.LENGTH_LONG).show();
+            }
+            checkForUpdates(false, true);
         }
     }
 
-    private int queryStatus(long downloadId) {
+    @Nullable
+    private DownloadState queryDownload(long downloadId) {
         DownloadManager.Query query = new DownloadManager.Query().setFilterById(downloadId);
         try (Cursor cursor = downloadManager.query(query)) {
             if (cursor != null && cursor.moveToFirst()) {
-                return cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                return new DownloadState(
+                        cursor.getInt(cursor.getColumnIndexOrThrow(
+                                DownloadManager.COLUMN_STATUS)),
+                        cursor.getInt(cursor.getColumnIndexOrThrow(
+                                DownloadManager.COLUMN_REASON)),
+                        cursor.getLong(cursor.getColumnIndexOrThrow(
+                                DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)),
+                        cursor.getLong(cursor.getColumnIndexOrThrow(
+                                DownloadManager.COLUMN_TOTAL_SIZE_BYTES)),
+                        cursor.getLong(cursor.getColumnIndexOrThrow(
+                                DownloadManager.COLUMN_LAST_MODIFIED_TIMESTAMP)));
             }
         } catch (Exception e) {
             Log.w(TAG, "Could not query update download", e);
         }
-        return -1;
+        return null;
+    }
+
+    private void showPausedDownloadDialog(Release release, long downloadId,
+                                          DownloadState state) {
+        new MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.app_update_download_paused_title)
+                .setMessage(activity.getString(R.string.app_update_download_paused_message,
+                        pausedReason(state.reason), formatProgress(state)))
+                .setPositiveButton(R.string.app_update_download_restart,
+                        (dialog, which) -> {
+                            downloadManager.remove(downloadId);
+                            clearPendingDownload();
+                            enqueueDownload(release);
+                        })
+                .setNegativeButton(R.string.app_update_download_wait, null)
+                .show();
+    }
+
+    private String pausedReason(int reason) {
+        switch (reason) {
+            case DownloadManager.PAUSED_WAITING_TO_RETRY:
+                return activity.getString(R.string.app_update_paused_waiting_retry);
+            case DownloadManager.PAUSED_WAITING_FOR_NETWORK:
+                return activity.getString(R.string.app_update_paused_waiting_network);
+            case DownloadManager.PAUSED_QUEUED_FOR_WIFI:
+                return activity.getString(R.string.app_update_paused_waiting_wifi);
+            default:
+                return activity.getString(R.string.app_update_paused_unknown);
+        }
+    }
+
+    private String formatProgress(DownloadState state) {
+        double downloadedMb = Math.max(0L, state.downloadedBytes) / (1024d * 1024d);
+        if (state.totalBytes > 0L) {
+            double totalMb = state.totalBytes / (1024d * 1024d);
+            return String.format(Locale.getDefault(), "%.1f / %.1f MB",
+                    downloadedMb, totalMb);
+        }
+        return String.format(Locale.getDefault(), "%.1f MB", downloadedMb);
+    }
+
+    private boolean isStalePausedDownload(DownloadState state) {
+        long startedAt = prefs.getLong(KEY_DOWNLOAD_STARTED_AT, 0L);
+        long lastActivity = Math.max(startedAt, state.lastModified);
+        return lastActivity > 0L
+                && System.currentTimeMillis() - lastActivity >= STALE_PAUSED_DOWNLOAD_MS;
     }
 
     private void processCompletedDownload(boolean reportErrors) {
@@ -443,6 +522,7 @@ public final class AppUpdateManager implements AutoCloseable {
                 .remove(KEY_DOWNLOAD_ID)
                 .remove(KEY_DOWNLOAD_VERSION)
                 .remove(KEY_DOWNLOAD_DIGEST)
+                .remove(KEY_DOWNLOAD_STARTED_AT)
                 .apply();
     }
 
@@ -526,6 +606,23 @@ public final class AppUpdateManager implements AutoCloseable {
             this.assetName = assetName;
             this.downloadUrl = downloadUrl;
             this.digest = digest;
+        }
+    }
+
+    private static final class DownloadState {
+        final int status;
+        final int reason;
+        final long downloadedBytes;
+        final long totalBytes;
+        final long lastModified;
+
+        DownloadState(int status, int reason, long downloadedBytes,
+                      long totalBytes, long lastModified) {
+            this.status = status;
+            this.reason = reason;
+            this.downloadedBytes = downloadedBytes;
+            this.totalBytes = totalBytes;
+            this.lastModified = lastModified;
         }
     }
 }
