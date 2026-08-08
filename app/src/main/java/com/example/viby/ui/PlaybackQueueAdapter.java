@@ -1,5 +1,6 @@
 package com.example.viby.ui;
 
+import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,6 +9,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.view.ViewCompat;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.recyclerview.widget.RecyclerView;
@@ -103,6 +105,9 @@ final class PlaybackQueueAdapter
         private final TextView duration;
         private final ImageButton delete;
         private final ImageView drag;
+        private final View currentIndicator;
+        private final Typeface normalTitleTypeface;
+        private final Typeface boldTitleTypeface;
 
         Holder(@NonNull View itemView) {
             super(itemView);
@@ -112,6 +117,9 @@ final class PlaybackQueueAdapter
             duration = itemView.findViewById(R.id.queueItemDuration);
             delete = itemView.findViewById(R.id.queueItemDelete);
             drag = itemView.findViewById(R.id.queueItemDrag);
+            currentIndicator = itemView.findViewById(R.id.queueItemCurrentIndicator);
+            normalTitleTypeface = title.getTypeface();
+            boldTitleTypeface = Typeface.create(normalTitleTypeface, Typeface.BOLD);
         }
 
         void bind(QueueItem queueItem) {
@@ -126,9 +134,13 @@ final class PlaybackQueueAdapter
                     ? Formats.duration(metadata.durationMs) : "");
 
             boolean current = item.mediaId.equals(currentMediaId);
-            title.setTextColor(MaterialColors.getColor(title, current
-                    ? androidx.appcompat.R.attr.colorPrimary
-                    : android.R.attr.textColorPrimary));
+            title.setTextColor(MaterialColors.getColor(
+                    title, android.R.attr.textColorPrimary));
+            title.setTypeface(current ? boldTitleTypeface : normalTitleTypeface);
+            currentIndicator.setVisibility(current ? View.VISIBLE : View.INVISIBLE);
+            itemView.setActivated(current);
+            ViewCompat.setStateDescription(itemView, current
+                    ? itemView.getContext().getString(R.string.currently_playing) : null);
 
             Glide.with(thumb)
                     .load(metadata.artworkData != null

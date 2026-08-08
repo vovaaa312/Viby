@@ -1,5 +1,6 @@
 package com.example.viby.ui;
 
+import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,6 +9,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -168,6 +170,9 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
         private final TextView title;
         private final TextView artist;
         private final TextView duration;
+        private final View currentIndicator;
+        private final Typeface normalTitleTypeface;
+        private final Typeface boldTitleTypeface;
 
         Holder(@NonNull View itemView) {
             super(itemView);
@@ -176,6 +181,9 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             title = itemView.findViewById(R.id.trackItemTitle);
             artist = itemView.findViewById(R.id.trackItemArtist);
             duration = itemView.findViewById(R.id.trackItemDuration);
+            currentIndicator = itemView.findViewById(R.id.trackCurrentIndicator);
+            normalTitleTypeface = title.getTypeface();
+            boldTitleTypeface = Typeface.create(normalTitleTypeface, Typeface.BOLD);
         }
 
         void bind(Track track, int position) {
@@ -188,11 +196,13 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             check.setChecked(selectedIds.contains(track.id));
 
             boolean isCurrent = track.id == currentTrackId;
-            title.setTextColor(isCurrent
-                    ? com.google.android.material.color.MaterialColors.getColor(
-                            title, androidx.appcompat.R.attr.colorPrimary)
-                    : com.google.android.material.color.MaterialColors.getColor(
-                            title, android.R.attr.textColorPrimary));
+            title.setTextColor(com.google.android.material.color.MaterialColors.getColor(
+                    title, android.R.attr.textColorPrimary));
+            title.setTypeface(isCurrent ? boldTitleTypeface : normalTitleTypeface);
+            currentIndicator.setVisibility(isCurrent ? View.VISIBLE : View.INVISIBLE);
+            itemView.setActivated(isCurrent);
+            ViewCompat.setStateDescription(itemView, isCurrent
+                    ? itemView.getContext().getString(R.string.currently_playing) : null);
 
             Glide.with(thumb)
                     .load(track.thumbnailUrl)
