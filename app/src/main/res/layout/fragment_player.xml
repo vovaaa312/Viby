@@ -64,8 +64,8 @@
     <com.example.viby.ui.widget.WaveformView
         android:id="@+id/waveform"
         android:layout_width="0dp"
-        android:layout_height="64dp"
-        android:layout_marginHorizontal="20dp"
+        android:layout_height="32dp"
+        android:layout_marginHorizontal="12dp"
         android:layout_marginBottom="2dp"
         app:layout_constraintBottom_toTopOf="@id/positionText"
         app:layout_constraintEnd_toEndOf="parent"
