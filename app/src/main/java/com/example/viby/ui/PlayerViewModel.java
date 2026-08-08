@@ -22,6 +22,7 @@ public class PlayerViewModel extends AndroidViewModel {
     private static final String PREFS = "viby_prefs";
     private static final String KEY_ACTIVE_PLAYLIST = "active_playlist";
     private static final String KEY_QUEUE_PLAYLIST = "queue_playlist";
+    private static final String KEY_QUEUE_CUSTOMIZED = "queue_customized";
 
     private final SharedPreferences prefs;
     private final MutableLiveData<String> activePlaylist = new MutableLiveData<>();
@@ -69,5 +70,14 @@ public class PlayerViewModel extends AndroidViewModel {
 
     public void setQueuePlaylist(String name) {
         prefs.edit().putString(KEY_QUEUE_PLAYLIST, name).apply();
+    }
+
+    /** Whether the player queue no longer exactly mirrors its source playlist. */
+    public boolean isQueueCustomized() {
+        return prefs.getBoolean(KEY_QUEUE_CUSTOMIZED, false);
+    }
+
+    public void setQueueCustomized(boolean customized) {
+        prefs.edit().putBoolean(KEY_QUEUE_CUSTOMIZED, customized).apply();
     }
 }
