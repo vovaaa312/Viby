@@ -33,6 +33,7 @@
     <!-- Equalizer -->
     <string name="eq_title">Эквалайзер</string>
     <string name="eq_enabled">Включён</string>
+    <string name="eq_preamp">Предусиление</string>
     <string name="eq_preset_button">Загрузить преднастройку…</string>
     <string name="eq_unavailable">Эквалайзер недоступен: плеер ещё не запущен или устройство его не поддерживает</string>
     <string name="eq_custom">Свой</string>

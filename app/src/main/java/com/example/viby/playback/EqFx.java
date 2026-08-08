@@ -27,6 +27,7 @@ public final class EqFx {
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_PRESET = "preset";
     private static final String KEY_GAIN = "gain_";
+    private static final String KEY_PREAMP_GAIN = "preamp_gain";
     private static final String CUSTOM_PREFS = "viby_eq_custom";
 
     public static final float MAX_GAIN_DB = 15f;
@@ -136,6 +137,18 @@ public final class EqFx {
         }
     }
 
+    public static synchronized float getPreampGainDb() {
+        return prefs != null ? prefs.getFloat(KEY_PREAMP_GAIN, 0f) : 0f;
+    }
+
+    public static synchronized void setPreampGainDb(float db) {
+        db = clamp(db);
+        if (prefs != null) {
+            prefs.edit().putFloat(KEY_PREAMP_GAIN, db).apply();
+        }
+        applyPreamp(db);
+    }
+
     public static synchronized String getPresetName() {
         return prefs != null ? prefs.getString(KEY_PRESET, "Zero") : "Zero";
     }
@@ -212,7 +225,23 @@ public final class EqFx {
         for (int band = 0; band < BANDS; band++) {
             applyBand(band, getBandGainDb(band));
         }
+        if (dp != null) {
+            applyPreamp(getPreampGainDb());
+        } else if (legacy != null) {
+            applyLegacyAll();
+        }
+    }
+
+    private static void applyPreamp(float db) {
+        if (dp != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                dp.setInputGainAllChannelsTo(db);
+            } catch (Exception e) {
+                Log.w(TAG, "setInputGain failed", e);
+            }
+        }
         if (legacy != null) {
+            // Legacy Equalizer has no input-gain stage, so emulate it as a curve offset.
             applyLegacyAll();
         }
     }
@@ -239,8 +268,10 @@ public final class EqFx {
         }
         try {
             short[] range = legacy.getBandLevelRange();
+            float preampDb = getPreampGainDb();
             for (short devBand = 0; devBand < legacy.getNumberOfBands(); devBand++) {
-                float db = EqPresets.gainAt(curve, legacy.getCenterFreq(devBand) / 1000f);
+                float db = EqPresets.gainAt(curve,
+                        legacy.getCenterFreq(devBand) / 1000f) + preampDb;
                 short level = (short) Math.max(range[0], Math.min(range[1], db * 100));
                 legacy.setBandLevel(devBand, level);
             }
