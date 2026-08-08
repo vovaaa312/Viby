@@ -34,5 +34,8 @@ public class Track {
     /** Порядок внутри плейлиста. */
     public int position;
 
+    /** Position in the source YouTube playlist; null for local-only tracks. */
+    public Integer youtubePosition;
+
     public long createdAt;
 }

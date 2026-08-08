@@ -276,7 +276,8 @@ public class DownloadService extends Service {
         }
 
         long durationMs = info.getDuration() * 1000L;
-        downloadTrack(job, job.url, videoId, title, info.getUploader(), durationMs, playlist);
+        downloadTrack(job, job.url, videoId, title, info.getUploader(), durationMs,
+                playlist, null);
         job.status = job.cancelRequested
                 ? DownloadJob.Status.CANCELED : DownloadJob.Status.DONE;
     }
@@ -318,6 +319,15 @@ public class DownloadService extends Service {
         job.totalCount = entries.length();
         publish(true);
 
+        java.util.Map<String, Integer> youtubePositions = new java.util.HashMap<>();
+        for (int i = 0; i < entries.length(); i++) {
+            String videoId = entries.getJSONObject(i).optString("id", "");
+            if (!videoId.isEmpty()) {
+                youtubePositions.put(videoId, i);
+            }
+        }
+        applyYoutubeOrder(playlist, youtubePositions);
+
         for (int i = 0; i < entries.length(); i++) {
             if (job.cancelRequested) {
                 break;
@@ -344,7 +354,8 @@ public class DownloadService extends Service {
                     continue;
                 }
                 String videoUrl = "https://www.youtube.com/watch?v=" + videoId;
-                downloadTrack(job, videoUrl, videoId, title, uploader, durationMs, playlist);
+                downloadTrack(job, videoUrl, videoId, title, uploader, durationMs,
+                        playlist, i);
             } catch (Exception e) {
                 if (job.cancelRequested) {
                     break;
@@ -354,15 +365,26 @@ public class DownloadService extends Service {
                 job.failedTitles.add(title);
             }
         }
+        applyYoutubeOrder(playlist, youtubePositions);
         job.status = job.cancelRequested
                 ? DownloadJob.Status.CANCELED : DownloadJob.Status.DONE;
+    }
+
+    private void applyYoutubeOrder(String playlist,
+                                   java.util.Map<String, Integer> youtubePositions) {
+        java.util.List<Track> tracks = dao.getPlaylistSync(playlist);
+        com.example.viby.data.YoutubePlaylistOrder.apply(tracks, youtubePositions);
+        if (!tracks.isEmpty()) {
+            dao.updateAll(tracks);
+        }
     }
 
     // ------------------------------------------------------------- download
 
     private void downloadTrack(DownloadJob job, String videoUrl, String videoId,
                                String title, @Nullable String uploader,
-                               long durationMs, String playlist) throws Exception {
+                               long durationMs, String playlist,
+                               @Nullable Integer youtubePosition) throws Exception {
         job.status = DownloadJob.Status.DOWNLOADING;
         job.currentTrackTitle = title;
         job.progress = 0;
@@ -398,6 +420,7 @@ public class DownloadService extends Service {
         track.thumbnailUrl = videoId != null && !videoId.isEmpty()
                 ? "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg" : null;
         track.position = dao.nextPosition(playlist);
+        track.youtubePosition = youtubePosition;
         track.createdAt = System.currentTimeMillis();
         dao.insert(track);
     }

@@ -244,7 +244,12 @@ public class MainActivity extends AppCompatActivity {
             }
             // тот же плейлист: докачались новые треки — дописываем в хвост очереди
             int inQueue = controller.getMediaItemCount();
-            if (tracks.size() > inQueue) {
+            boolean prefixMatches = inQueue <= tracks.size();
+            for (int i = 0; prefixMatches && i < inQueue; i++) {
+                prefixMatches = String.valueOf(tracks.get(i).id)
+                        .equals(controller.getMediaItemAt(i).mediaId);
+            }
+            if (prefixMatches && tracks.size() > inQueue) {
                 List<MediaItem> tail = new ArrayList<>();
                 for (int i = inQueue; i < tracks.size(); i++) {
                     tail.add(toMediaItem(tracks.get(i)));
@@ -253,6 +258,8 @@ public class MainActivity extends AppCompatActivity {
                 if (inQueue == 0) {
                     controller.prepare();
                 }
+            } else if (!prefixMatches || tracks.size() < inQueue) {
+                resyncQueueOrder(active, tracks);
             }
             return;
         }
@@ -307,6 +314,7 @@ public class MainActivity extends AppCompatActivity {
     /** Диалог «Сортировать по…» в духе AIMP: радио-список + «В обратном порядке». */
     private void showSortDialog() {
         String[] labels = {
+                getString(R.string.sort_as_on_youtube),
                 getString(R.string.sort_by_title),
                 getString(R.string.sort_by_artist),
                 getString(R.string.sort_by_filename),
@@ -364,43 +372,44 @@ public class MainActivity extends AppCompatActivity {
             List<Track> tracks = dao.getPlaylistSync(playlist);
             switch (option) {
                 case 0:
+                    com.example.viby.data.YoutubePlaylistOrder.sort(tracks);
+                    break;
+                case 1:
                     tracks.sort(java.util.Comparator.comparing(
                             t -> t.title.toLowerCase(java.util.Locale.getDefault())));
                     break;
-                case 1:
+                case 2:
                     tracks.sort(java.util.Comparator.comparing(
                             t -> t.uploader != null
                                     ? t.uploader.toLowerCase(java.util.Locale.getDefault()) : ""));
                     break;
-                case 2:
+                case 3:
                     tracks.sort(java.util.Comparator.comparing(
                             t -> new File(t.filePath).getName()
                                     .toLowerCase(java.util.Locale.getDefault())));
                     break;
-                case 3:
+                case 4:
                     tracks.sort(java.util.Comparator.comparingLong(t -> t.durationMs));
                     break;
-                case 4:
+                case 5:
                     tracks.sort(java.util.Comparator.comparingLong(t -> t.createdAt));
                     break;
                 default:
                     java.util.Collections.shuffle(tracks);
                     break;
             }
-            if (reversed && option != 5) {
+            if (reversed && option != 6) {
                 java.util.Collections.reverse(tracks);
             }
             for (int i = 0; i < tracks.size(); i++) {
                 tracks.get(i).position = i;
             }
             dao.updateAll(tracks);
-            List<Track> sorted = new ArrayList<>(tracks);
-            runOnUiThread(() -> resyncQueueAfterSort(playlist, sorted));
         });
     }
 
     /** После сортировки перestraивает очередь, сохраняя текущий трек и позицию. */
-    private void resyncQueueAfterSort(String playlist, List<Track> sorted) {
+    private void resyncQueueOrder(String playlist, List<Track> sorted) {
         MediaController controller = viewModel.controller.getValue();
         if (controller == null || !playlist.equals(loadedPlaylist)
                 || viewModel.isQueueCustomized()) {
@@ -502,6 +511,7 @@ public class MainActivity extends AppCompatActivity {
                     continue; // файл не переехал — запись не трогаем
                 }
                 track.playlistName = target;
+                track.youtubePosition = null;
                 if (src.exists() || dest.exists()) {
                     track.filePath = dest.getAbsolutePath();
                 }
