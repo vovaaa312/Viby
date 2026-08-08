@@ -77,6 +77,7 @@
     <string name="reorder_queue_item">Reorder track</string>
     <string name="reset_playback_queue">Reset</string>
     <string name="playback_queue_reset">Queue and shuffle have been reset</string>
+    <string name="currently_playing">Currently playing</string>
 
     <string name="ytdlp_updating">Updating yt-dlp…</string>
     <string name="ytdlp_updated">yt-dlp updated</string>
