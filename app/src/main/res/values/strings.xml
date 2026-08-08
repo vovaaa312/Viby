@@ -50,6 +50,7 @@
     <string name="eq_save_preset">Save preset…</string>
     <string name="eq_preset_name_hint">Preset name</string>
     <string name="eq_preset_saved">Preset saved</string>
+    <string name="eq_curve_content_description">Interactive 20-band equalizer curve</string>
     <string name="btn_save">Save</string>
 
     <!-- Context menu / multi-select -->

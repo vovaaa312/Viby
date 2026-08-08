@@ -11,13 +11,14 @@ import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * 10-полосный эквалайзер как в AIMP (60 Гц … 16 кГц).
- * На Android 9+ работает через {@link DynamicsProcessing} (честные 10 полос),
+ * 20-полосный эквалайзер на частотной сетке AIMP (31 Гц … 22 кГц).
+ * На Android 9+ работает через {@link DynamicsProcessing} (честные 20 полос),
  * на старых устройствах — через системный {@link Equalizer} с интерполяцией
- * 10 пользовательских полос под реальные полосы устройства.
+ * 20 пользовательских полос под реальные полосы устройства.
  * Настройки и пользовательские пресеты живут в SharedPreferences.
  */
 public final class EqFx {
@@ -28,7 +29,9 @@ public final class EqFx {
     private static final String KEY_PRESET = "preset";
     private static final String KEY_GAIN = "gain_";
     private static final String KEY_PREAMP_GAIN = "preamp_gain";
+    private static final String KEY_BAND_SCHEMA = "band_schema";
     private static final String CUSTOM_PREFS = "viby_eq_custom";
+    private static final int BAND_SCHEMA_VERSION = 2;
 
     public static final float MAX_GAIN_DB = 15f;
     public static final String PRESET_CUSTOM = "";
@@ -50,6 +53,7 @@ public final class EqFx {
         Context app = context.getApplicationContext();
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         customPrefs = app.getSharedPreferences(CUSTOM_PREFS, Context.MODE_PRIVATE);
+        migrateBandSchemaIfNeeded();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
@@ -61,6 +65,7 @@ public final class EqFx {
                         /* postEqInUse= */ false, 0,
                         /* limiterInUse= */ false).build();
                 dp = new DynamicsProcessing(0, audioSessionId, config);
+                Log.i(TAG, "DynamicsProcessing initialized with " + BANDS + " bands");
             } catch (Exception e) {
                 Log.w(TAG, "DynamicsProcessing unavailable, falling back", e);
                 dp = null;
@@ -110,7 +115,7 @@ public final class EqFx {
         setEnabledInternal(enabled);
     }
 
-    /** Полос всегда 10 — как в AIMP; под устройство они мапятся внутри. */
+    /** Полос всегда 20; на старых устройствах они мапятся внутри. */
     public static int getBandCount() {
         return BANDS;
     }
@@ -207,18 +212,99 @@ public final class EqFx {
         if (customPrefs != null) {
             String csv = customPrefs.getString(name, null);
             if (csv != null) {
-                String[] parts = csv.split(",");
-                float[] curve = new float[BANDS];
-                for (int i = 0; i < BANDS && i < parts.length; i++) {
-                    try {
-                        curve[i] = Float.parseFloat(parts[i]);
-                    } catch (NumberFormatException ignored) {
-                    }
+                float[] curve = parseCurve(csv);
+                if (curve != null) {
+                    return curve;
                 }
-                return curve;
             }
         }
         return EqPresets.curve(name);
+    }
+
+    /** Переносит настройки 1.2.3 и старше со старой 10-полосной сетки без сброса звука. */
+    private static void migrateBandSchemaIfNeeded() {
+        if (prefs == null || prefs.getInt(KEY_BAND_SCHEMA, 1) >= BAND_SCHEMA_VERSION) {
+            return;
+        }
+
+        float[] legacyCurve = new float[EqPresets.LEGACY_FREQS_HZ.length];
+        for (int band = 0; band < legacyCurve.length; band++) {
+            legacyCurve[band] = prefs.getFloat(KEY_GAIN + band, 0f);
+        }
+        float[] migrated = EqPresets.migrateLegacyCurve(legacyCurve);
+        SharedPreferences.Editor editor = prefs.edit();
+        for (int band = 0; band < migrated.length; band++) {
+            editor.putFloat(KEY_GAIN + band, clamp(migrated[band]));
+        }
+        editor.putInt(KEY_BAND_SCHEMA, BAND_SCHEMA_VERSION).apply();
+
+        if (customPrefs != null) {
+            SharedPreferences.Editor customEditor = customPrefs.edit();
+            boolean changed = false;
+            for (Map.Entry<String, ?> entry : customPrefs.getAll().entrySet()) {
+                if (!(entry.getValue() instanceof String)) {
+                    continue;
+                }
+                String[] parts = ((String) entry.getValue()).split(",");
+                if (parts.length != EqPresets.LEGACY_FREQS_HZ.length) {
+                    continue;
+                }
+                float[] curve = parseRawCurve(parts);
+                if (curve != null) {
+                    customEditor.putString(entry.getKey(),
+                            serializeCurve(EqPresets.migrateLegacyCurve(curve)));
+                    changed = true;
+                }
+            }
+            if (changed) {
+                customEditor.apply();
+            }
+        }
+        Log.i(TAG, "Migrated equalizer settings to " + BANDS + " bands");
+    }
+
+    @Nullable
+    private static float[] parseCurve(String csv) {
+        String[] parts = csv.split(",");
+        float[] parsed = parseRawCurve(parts);
+        if (parsed == null) {
+            return null;
+        }
+        if (parsed.length == BANDS) {
+            return parsed;
+        }
+        if (parsed.length == EqPresets.LEGACY_FREQS_HZ.length) {
+            return EqPresets.migrateLegacyCurve(parsed);
+        }
+        return null;
+    }
+
+    @Nullable
+    private static float[] parseRawCurve(String[] parts) {
+        float[] curve = new float[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            try {
+                float value = Float.parseFloat(parts[i]);
+                if (Float.isNaN(value) || Float.isInfinite(value)) {
+                    return null;
+                }
+                curve[i] = clamp(value);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return curve;
+    }
+
+    private static String serializeCurve(float[] curve) {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < curve.length; i++) {
+            if (i > 0) {
+                csv.append(',');
+            }
+            csv.append(clamp(curve[i]));
+        }
+        return csv.toString();
     }
 
     private static void applyAllGains() {
@@ -257,7 +343,7 @@ public final class EqFx {
         }
     }
 
-    /** Fallback: интерполируем 10 UI-полос под реальные полосы устройства. */
+    /** Fallback: интерполируем 20 UI-полос под реальные полосы устройства. */
     private static void applyLegacyAll() {
         if (legacy == null) {
             return;
@@ -297,7 +383,7 @@ public final class EqFx {
     private static float cutoffHz(int band) {
         float[] f = EqPresets.FREQS_HZ;
         return band < f.length - 1
-                ? (float) Math.sqrt((double) f[band] * f[band + 1]) : 20000f;
+                ? (float) Math.sqrt((double) f[band] * f[band + 1]) : 24000f;
     }
 
     private static float clamp(float db) {

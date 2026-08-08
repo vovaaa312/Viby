@@ -1,14 +1,18 @@
 package com.example.viby.playback;
 
 /**
- * Пресеты эквалайзера как в AIMP/Winamp: 10 полос
- * (60, 170, 310, 600, 1k, 3k, 6k, 12k, 14k, 16k Гц), значения в дБ.
- * Кривые интерполируются под реальные полосы системного эквалайзера устройства.
+ * Пресеты эквалайзера, перенесённые со старой 10-полосной сетки Viby
+ * на 20-полосную логарифмическую сетку AIMP.
  */
 public final class EqPresets {
 
-    public static final float[] FREQS_HZ =
+    static final float[] LEGACY_FREQS_HZ =
             {60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000};
+
+    public static final float[] FREQS_HZ = {
+            31, 43, 63, 87, 125, 175, 250, 350, 500, 700,
+            1000, 1400, 2000, 2800, 4000, 5600, 8000, 11200, 16000, 22000
+    };
 
     public static final String[] NAMES = {
             "Zero",
@@ -66,10 +70,10 @@ public final class EqPresets {
     public static float[] curve(String name) {
         for (int i = 0; i < NAMES.length; i++) {
             if (NAMES[i].equals(name)) {
-                return CURVES[i];
+                return migrateLegacyCurve(CURVES[i]);
             }
         }
-        return CURVES[0];
+        return migrateLegacyCurve(CURVES[0]);
     }
 
     /**
@@ -77,16 +81,35 @@ public final class EqPresets {
      * по логарифму частоты между 10 опорными полосами.
      */
     public static float gainAt(float[] curve, float freqHz) {
-        if (freqHz <= FREQS_HZ[0]) {
+        return gainAt(curve, FREQS_HZ, freqHz);
+    }
+
+    static float[] migrateLegacyCurve(float[] legacyCurve) {
+        return resample(legacyCurve, LEGACY_FREQS_HZ, FREQS_HZ);
+    }
+
+    static float[] resample(float[] curve, float[] sourceFreqs, float[] targetFreqs) {
+        if (curve.length != sourceFreqs.length || sourceFreqs.length == 0) {
+            throw new IllegalArgumentException("Curve and frequency counts must match");
+        }
+        float[] result = new float[targetFreqs.length];
+        for (int i = 0; i < targetFreqs.length; i++) {
+            result[i] = gainAt(curve, sourceFreqs, targetFreqs[i]);
+        }
+        return result;
+    }
+
+    private static float gainAt(float[] curve, float[] frequencies, float freqHz) {
+        if (freqHz <= frequencies[0]) {
             return curve[0];
         }
-        if (freqHz >= FREQS_HZ[FREQS_HZ.length - 1]) {
+        if (freqHz >= frequencies[frequencies.length - 1]) {
             return curve[curve.length - 1];
         }
-        for (int i = 0; i < FREQS_HZ.length - 1; i++) {
-            if (freqHz <= FREQS_HZ[i + 1]) {
-                double logLow = Math.log(FREQS_HZ[i]);
-                double logHigh = Math.log(FREQS_HZ[i + 1]);
+        for (int i = 0; i < frequencies.length - 1; i++) {
+            if (freqHz <= frequencies[i + 1]) {
+                double logLow = Math.log(frequencies[i]);
+                double logHigh = Math.log(frequencies[i + 1]);
                 double t = (Math.log(freqHz) - logLow) / (logHigh - logLow);
                 return (float) (curve[i] + t * (curve[i + 1] - curve[i]));
             }

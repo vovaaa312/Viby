@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Тёмная тема: мягкая инверсия без режущего глаза чистого белого. -->
-    <color name="viby_accent">#FFD0D0D0</color>
-    <color name="viby_accent_dark">#FFB8B8B8</color>
-    <color name="viby_on_accent">#FF181818</color>
+    <!-- Тёмная тема: чёрная база и поверхности на 10% светлее. -->
+    <color name="viby_accent">#FFFFFFFF</color>
+    <color name="viby_accent_dark">#FF1A1A1A</color>
+    <color name="viby_on_accent">#FF000000</color>
+    <color name="viby_control_panel">#FF1A1A1A</color>
+    <color name="viby_on_control_panel">#FFFFFFFF</color>
 
-    <color name="viby_bg">#FF121212</color>
-    <color name="viby_surface">#FF1B1B1B</color>
-    <color name="viby_surface_high">#FF292929</color>
-    <color name="viby_wave">#FF505050</color>
-    <color name="viby_text">#FFE9E9E9</color>
-    <color name="viby_text_secondary">#FFA0A0A0</color>
+    <color name="viby_bg">#FF000000</color>
+    <color name="viby_surface">#FF000000</color>
+    <color name="viby_surface_high">#FF1A1A1A</color>
+    <color name="viby_wave">#FF1A1A1A</color>
+    <color name="viby_text">#FFFFFFFF</color>
+    <color name="viby_text_secondary">#FFE6E6E6</color>
 </resources>
