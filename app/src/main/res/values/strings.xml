@@ -33,6 +33,7 @@
     <!-- Equalizer -->
     <string name="eq_title">Equalizer</string>
     <string name="eq_enabled">Enabled</string>
+    <string name="eq_preamp">Preamp</string>
     <string name="eq_preset_button">Load preset…</string>
     <string name="eq_unavailable">Equalizer is unavailable: the player has not started yet or the device does not support it</string>
     <string name="eq_custom">Custom</string>

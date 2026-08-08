@@ -33,6 +33,8 @@ public class EqualizerActivity extends AppCompatActivity {
     private static final int SLIDER_MAX = (int) (EqFx.MAX_GAIN_DB * 2 * 10);
 
     private Button presetButton;
+    private TextView preampValueLabel;
+    private SeekBar preampSlider;
     private TextView[] valueLabels;
     private SeekBar[] sliders;
 
@@ -65,7 +67,57 @@ public class EqualizerActivity extends AppCompatActivity {
         savePresetButton.setOnClickListener(v -> showSavePresetDialog());
         updatePresetButton();
 
+        buildPreamp(bandsContainer);
         buildBands(bandsContainer);
+    }
+
+    private void buildPreamp(LinearLayout container) {
+        float density = getResources().getDisplayMetrics().density;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, (int) (8 * density), 0, (int) (10 * density));
+
+        TextView label = new TextView(this);
+        label.setText(R.string.eq_preamp);
+        label.setGravity(Gravity.END);
+        label.setTextSize(13);
+        row.addView(label, new LinearLayout.LayoutParams(
+                (int) (96 * density), LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        preampSlider = new SeekBar(this);
+        preampSlider.setMax(SLIDER_MAX);
+        preampSlider.setProgress(gainToProgress(EqFx.getPreampGainDb()));
+        preampSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    EqFx.setPreampGainDb(progressToGain(progress));
+                }
+                updatePreampValueLabel();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar bar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar bar) {
+            }
+        });
+        LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        sliderParams.setMarginStart((int) (8 * density));
+        row.addView(preampSlider, sliderParams);
+
+        preampValueLabel = new TextView(this);
+        preampValueLabel.setGravity(Gravity.END);
+        preampValueLabel.setTextSize(13);
+        row.addView(preampValueLabel, new LinearLayout.LayoutParams(
+                (int) (64 * density), LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        container.addView(row);
+        updatePreampValueLabel();
     }
 
     private void buildBands(LinearLayout container) {
@@ -174,10 +226,17 @@ public class EqualizerActivity extends AppCompatActivity {
     }
 
     private void refreshSliders() {
+        preampSlider.setProgress(gainToProgress(EqFx.getPreampGainDb()));
+        updatePreampValueLabel();
         for (int band = 0; band < sliders.length; band++) {
             sliders[band].setProgress(gainToProgress(EqFx.getBandGainDb(band)));
             updateValueLabel(band);
         }
+    }
+
+    private void updatePreampValueLabel() {
+        preampValueLabel.setText(String.format(Locale.US, "%+.1f dB",
+                EqFx.getPreampGainDb()));
     }
 
     private void updateValueLabel(int band) {
