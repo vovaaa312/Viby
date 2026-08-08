@@ -6,7 +6,29 @@
     <!-- Drawer -->
     <string name="menu_download">Download track/playlist</string>
     <string name="menu_update_ytdlp">Update yt-dlp</string>
+    <string name="menu_check_updates">Check for app updates</string>
     <string name="menu_effects">Sound effects</string>
+
+    <!-- App updates -->
+    <string name="app_update_checking">Checking for updates…</string>
+    <string name="app_update_check_in_progress">An update check is already running</string>
+    <string name="app_update_available_title">Viby update available</string>
+    <string name="app_update_available_message">Installed: %1$s\nAvailable: %2$s</string>
+    <string name="app_update_download">Download</string>
+    <string name="app_update_later">Later</string>
+    <string name="app_update_up_to_date">Viby %1$s is up to date</string>
+    <string name="app_update_check_error">Update check failed: %1$s</string>
+    <string name="app_update_download_title">Viby update %1$s</string>
+    <string name="app_update_download_description">Downloading update from GitHub</string>
+    <string name="app_update_download_started">The update is downloading. Android will show its progress in notifications.</string>
+    <string name="app_update_download_in_progress">The update is already downloading</string>
+    <string name="app_update_download_failed">Could not create the update download</string>
+    <string name="app_update_integrity_failed">The downloaded APK failed its integrity check and was deleted</string>
+    <string name="app_update_install_permission_title">Allow update installation</string>
+    <string name="app_update_install_permission_message">Android must allow Viby to install apps from this source. Enable the permission, then return to Viby.</string>
+    <string name="app_update_open_settings">Open settings</string>
+    <string name="app_update_install_permission_denied">Installation permission was not granted. You can retry from the side menu.</string>
+    <string name="app_update_installer_unavailable">Android package installer is unavailable</string>
 
     <!-- Equalizer -->
     <string name="eq_title">Equalizer</string>
