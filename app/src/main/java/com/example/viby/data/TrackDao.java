@@ -37,6 +37,21 @@ public interface TrackDao {
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM tracks WHERE playlistName = :playlist")
     int nextPosition(String playlist);
 
-    @Query("SELECT EXISTS(SELECT 1 FROM tracks WHERE playlistName = :playlist AND videoId = :videoId)")
-    boolean exists(String playlist, String videoId);
+    @Query("SELECT EXISTS(SELECT 1 FROM tracks WHERE playlistName = :playlist "
+            + "AND videoId = :videoId AND downloaded = 1)")
+    boolean isDownloaded(String playlist, String videoId);
+
+    @Query("SELECT * FROM tracks WHERE playlistName = :playlist AND videoId = :videoId LIMIT 1")
+    Track getByVideoIdSync(String playlist, String videoId);
+
+    @Query("SELECT * FROM tracks WHERE playlistName = :playlist AND videoId = :videoId "
+            + "AND downloaded = 1 LIMIT 1")
+    Track getDownloadedByVideoIdSync(String playlist, String videoId);
+
+    @Query("SELECT COUNT(*) FROM tracks WHERE filePath = :filePath")
+    int countFileReferences(String filePath);
+
+    @Query("DELETE FROM tracks WHERE playlistName = :playlist AND videoId = :videoId "
+            + "AND downloaded = 0")
+    void deletePending(String playlist, String videoId);
 }

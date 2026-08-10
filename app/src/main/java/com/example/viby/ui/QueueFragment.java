@@ -10,6 +10,7 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -26,6 +27,7 @@ import com.bumptech.glide.Glide;
 import com.example.viby.R;
 import com.example.viby.data.PlaylistInfo;
 import com.example.viby.data.Track;
+import com.example.viby.download.DownloadService;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.Collections;
@@ -186,6 +188,9 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
             emptyText.setVisibility(tracks.isEmpty() ? View.VISIBLE : View.GONE);
         });
 
+        DownloadService.getJobs().observe(getViewLifecycleOwner(),
+                adapter::setDownloadJobs);
+
         viewModel.controller.observe(getViewLifecycleOwner(), newController -> {
             if (controller != null) {
                 controller.removeListener(playerListener);
@@ -212,6 +217,11 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
 
     @Override
     public void onTrackLongClick(Track track) {
+        if (!track.downloaded) {
+            Toast.makeText(requireContext(), R.string.pending_track_actions_disabled,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
         String[] items = {
                 getString(R.string.ctx_play),
                 getString(R.string.ctx_add_queue),
@@ -331,11 +341,8 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                     String url = input.getText().toString().trim();
                     String playlist = viewModel.getActivePlaylistName();
                     if (url.contains("youtube.com/") || url.contains("youtu.be/")) {
-                        com.example.viby.download.DownloadService.enqueue(
-                                requireContext(), url, playlist, false);
-                        android.widget.Toast.makeText(requireContext(),
-                                R.string.download_queued,
-                                android.widget.Toast.LENGTH_SHORT).show();
+                        DuplicateTrackPrompt.enqueue(requireActivity(), url,
+                                playlist, false, null);
                     } else {
                         android.widget.Toast.makeText(requireContext(),
                                 R.string.error_invalid_url,

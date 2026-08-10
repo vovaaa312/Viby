@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
@@ -44,6 +45,25 @@
             android:layout_marginTop="4dp"
             android:max="100" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/downloadDrag"
+        android:layout_width="36dp"
+        android:layout_height="44dp"
+        android:contentDescription="@string/reorder_download_job"
+        android:padding="8dp"
+        android:src="@drawable/ic_drag_handle"
+        app:tint="?attr/colorOnSurfaceVariant" />
+
+    <ImageButton
+        android:id="@+id/downloadTracks"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/open_download_track_queue"
+        android:src="@drawable/ic_queue_music"
+        android:visibility="gone"
+        app:tint="?attr/colorOnSurfaceVariant" />
 
     <ImageButton
         android:id="@+id/downloadPause"

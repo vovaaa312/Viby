@@ -23,4 +23,10 @@ public class PendingDownload {
     public boolean isPlaylist;
 
     public long createdAt;
+
+    public long queuePosition;
+
+    public boolean paused;
+
+    public String trackOrderJson;
 }

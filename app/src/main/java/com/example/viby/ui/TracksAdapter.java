@@ -15,11 +15,15 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.example.viby.R;
 import com.example.viby.data.Track;
+import com.example.viby.download.DownloadJob;
+import com.example.viby.ui.widget.DownloadProgressOverlayView;
 import com.example.viby.util.Formats;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
@@ -38,6 +42,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
     private final List<Track> allTracks = new ArrayList<>();
     private final List<Track> tracks = new ArrayList<>();
     private final Set<Long> selectedIds = new HashSet<>();
+    private final Map<String, Integer> pendingProgress = new HashMap<>();
     private String query = "";
     private boolean selectionMode;
     private long currentTrackId = -1;
@@ -91,6 +96,36 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             currentTrackId = id;
             notifyDataSetChanged();
         }
+    }
+
+    /** Updates progress overlays for incomplete tracks in active playlist jobs. */
+    public void setDownloadJobs(List<DownloadJob> jobs) {
+        Map<String, Integer> updated = new HashMap<>();
+        if (jobs != null) {
+            for (DownloadJob job : jobs) {
+                if (!job.isActive() || job.playlistName == null) {
+                    continue;
+                }
+                synchronized (job.tracks) {
+                    for (DownloadJob.TrackItem item : job.tracks) {
+                        if (item.status == DownloadJob.TrackItem.Status.WAITING
+                                || item.status == DownloadJob.TrackItem.Status.DOWNLOADING) {
+                            updated.put(progressKey(job.playlistName, item.videoId),
+                                    item.progress);
+                        }
+                    }
+                }
+            }
+        }
+        if (!pendingProgress.equals(updated)) {
+            pendingProgress.clear();
+            pendingProgress.putAll(updated);
+            notifyDataSetChanged();
+        }
+    }
+
+    private static String progressKey(String playlist, String videoId) {
+        return playlist + '\u0000' + (videoId != null ? videoId : "");
     }
 
     // ------------------------------------------------------- multi-select
@@ -167,6 +202,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
     class Holder extends RecyclerView.ViewHolder {
         private final CheckBox check;
         private final ImageView thumb;
+        private final DownloadProgressOverlayView downloadProgress;
         private final TextView title;
         private final TextView artist;
         private final TextView duration;
@@ -178,6 +214,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             super(itemView);
             check = itemView.findViewById(R.id.trackCheck);
             thumb = itemView.findViewById(R.id.trackThumb);
+            downloadProgress = itemView.findViewById(R.id.trackDownloadProgress);
             title = itemView.findViewById(R.id.trackItemTitle);
             artist = itemView.findViewById(R.id.trackItemArtist);
             duration = itemView.findViewById(R.id.trackItemDuration);
@@ -188,8 +225,13 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
 
         void bind(Track track, int position) {
             title.setText(track.title);
-            artist.setText(track.uploader != null ? track.uploader
-                    : itemView.getContext().getString(R.string.unknown_artist));
+            String artistText = track.uploader != null ? track.uploader
+                    : itemView.getContext().getString(R.string.unknown_artist);
+            if (!track.downloaded) {
+                artistText += " — "
+                        + itemView.getContext().getString(R.string.pending_track_online);
+            }
+            artist.setText(artistText);
             duration.setText(Formats.duration(track.durationMs));
 
             check.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
@@ -210,6 +252,11 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
                     .error(R.drawable.ic_music_note)
                     .centerCrop()
                     .into(thumb);
+
+            Integer progress = pendingProgress.get(
+                    progressKey(track.playlistName, track.videoId));
+            downloadProgress.showProgress(!track.downloaded && progress != null,
+                    progress != null ? progress : 0);
 
             itemView.setOnClickListener(v -> {
                 if (selectionMode) {

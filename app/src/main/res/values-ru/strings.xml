@@ -124,6 +124,22 @@
     <string name="status_done_errors">Готово, ошибок: %1$d</string>
     <string name="status_failed">Ошибка</string>
     <string name="status_canceled">Отменено</string>
+    <string name="reorder_download_job">Изменить порядок загрузки</string>
+    <string name="download_queue_hint">Зажмите и перетащите плейлист, чтобы изменить порядок загрузки</string>
+    <string name="download_track_queue_title">Порядок загрузки плейлиста</string>
+    <string name="download_track_queue_hint">Ожидающие треки можно зажать и перетащить в любом порядке</string>
+    <string name="download_track_queue_loading">Список появится после получения информации о плейлисте</string>
+    <string name="open_download_track_queue">Открыть порядок загрузки плейлиста</string>
+    <string name="reorder_download_track">Изменить порядок загрузки трека</string>
+    <string name="download_track_waiting">Ожидает</string>
+    <string name="download_track_active">Скачивается</string>
+    <string name="download_track_done">Скачан</string>
+    <string name="download_track_failed">Ошибка</string>
+    <string name="pending_track_online">Ожидает загрузки · нажмите для онлайн-прослушивания</string>
+    <string name="pending_track_actions_disabled">Трек ещё загружается; нажмите на него, чтобы слушать онлайн</string>
+    <string name="smart_stream_preparing">Готовлю онлайн-воспроизведение и ставлю трек в приоритет…</string>
+    <string name="smart_stream_unavailable">Онлайн-воспроизведение недоступно для этого трека</string>
+    <string name="smart_stream_failed">Не удалось запустить онлайн-воспроизведение. Трек остался первым в очереди загрузки.</string>
     <string name="error_playlist_empty">В плейлисте не нашлось видео</string>
     <string name="error_engine_init">yt-dlp не смог инициализироваться</string>
     <string name="unit_kb">%1$s КБ</string>
@@ -158,6 +174,10 @@
     <string name="add_from_url">По ссылке YouTube (один трек)</string>
     <string name="tracks_added">Добавлено: %1$d</string>
     <string name="importing_tracks">Импортирую…</string>
+    <string name="duplicate_track_title">Трек уже есть в плейлисте</string>
+    <string name="duplicate_track_message">«%1$s» уже есть в «%2$s». Добавить ещё раз?</string>
+    <string name="duplicate_track_add">Добавить повторно</string>
+    <string name="duplicate_track_added">Повторно добавлено в «%1$s»</string>
 
     <!-- YouTube account -->
     <string name="menu_account">Аккаунт YouTube</string>
