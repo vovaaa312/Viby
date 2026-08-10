@@ -38,4 +38,10 @@ public class Track {
     public Integer youtubePosition;
 
     public long createdAt;
+
+    /** True once filePath points to a complete local audio file. */
+    public boolean downloaded = true;
+
+    /** YouTube page used to resolve a temporary online stream for pending tracks. */
+    public String sourceUrl;
 }

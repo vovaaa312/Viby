@@ -12,6 +12,8 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.viby.R;
@@ -25,6 +27,7 @@ public class DownloadActivity extends AppCompatActivity {
     private EditText urlInput;
     private EditText playlistInput;
     private CheckBox wholePlaylistCheck;
+    private ItemTouchHelper itemTouchHelper;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -41,8 +44,52 @@ public class DownloadActivity extends AppCompatActivity {
         Button downloadButton = findViewById(R.id.downloadButton);
         RecyclerView downloadsList = findViewById(R.id.downloadsList);
 
-        DownloadsAdapter adapter = new DownloadsAdapter();
+        DownloadsAdapter adapter = new DownloadsAdapter(new DownloadsAdapter.Listener() {
+            @Override
+            public void onStartDrag(RecyclerView.ViewHolder holder) {
+                if (itemTouchHelper != null) {
+                    itemTouchHelper.startDrag(holder);
+                }
+            }
+
+            @Override
+            public void onOpenTracks(long jobId) {
+                DownloadTrackQueueDialogFragment.newInstance(jobId)
+                        .show(getSupportFragmentManager(), "download-track-queue");
+            }
+        });
         downloadsList.setAdapter(adapter);
+        itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
+                ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
+            @Override
+            public boolean isLongPressDragEnabled() {
+                return false;
+            }
+
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView,
+                                  @NonNull RecyclerView.ViewHolder source,
+                                  @NonNull RecyclerView.ViewHolder target) {
+                int from = source.getBindingAdapterPosition();
+                int to = target.getBindingAdapterPosition();
+                if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION
+                        || !adapter.canMove(from) || !adapter.canMove(to)) {
+                    return false;
+                }
+                long movedId = adapter.getJobId(from);
+                long targetId = adapter.getJobId(to);
+                adapter.move(from, to);
+                DownloadService.moveJob(DownloadActivity.this, movedId, targetId);
+                return true;
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder,
+                                  int direction) {
+                // Swipe is disabled; cancellation has an explicit button.
+            }
+        });
+        itemTouchHelper.attachToRecyclerView(downloadsList);
         DownloadService.getJobs().observe(this, adapter::submit);
 
         urlInput.addTextChangedListener(new TextWatcher() {
@@ -114,9 +161,9 @@ public class DownloadActivity extends AppCompatActivity {
         boolean isPlaylist = wholePlaylistCheck.getVisibility() == View.VISIBLE
                 && wholePlaylistCheck.isChecked();
 
-        DownloadService.enqueue(this, url, playlist.isEmpty() ? null : playlist, isPlaylist);
-        Toast.makeText(this, R.string.download_queued, Toast.LENGTH_SHORT).show();
-        urlInput.setText("");
+        DuplicateTrackPrompt.enqueue(this, url,
+                playlist.isEmpty() ? null : playlist, isPlaylist,
+                () -> urlInput.setText(""));
     }
 
     private static boolean isYoutubeUrl(String url) {

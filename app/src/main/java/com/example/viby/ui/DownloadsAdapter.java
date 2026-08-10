@@ -4,6 +4,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -20,7 +21,18 @@ import java.util.List;
 
 public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Holder> {
 
+    interface Listener {
+        void onStartDrag(RecyclerView.ViewHolder holder);
+
+        void onOpenTracks(long jobId);
+    }
+
     private final List<DownloadJob> jobs = new ArrayList<>();
+    private final Listener listener;
+
+    DownloadsAdapter(Listener listener) {
+        this.listener = listener;
+    }
 
     public void submit(List<DownloadJob> newJobs) {
         jobs.clear();
@@ -47,13 +59,32 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Hold
         return jobs.size();
     }
 
-    static class Holder extends RecyclerView.ViewHolder {
+    boolean canMove(int position) {
+        return position >= 0 && position < jobs.size() && jobs.get(position).isActive();
+    }
+
+    void move(int from, int to) {
+        if (from == to || !canMove(from) || !canMove(to)) {
+            return;
+        }
+        DownloadJob moved = jobs.remove(from);
+        jobs.add(to, moved);
+        notifyItemMoved(from, to);
+    }
+
+    long getJobId(int position) {
+        return jobs.get(position).id;
+    }
+
+    final class Holder extends RecyclerView.ViewHolder {
         private final TextView title;
         private final TextView track;
         private final TextView status;
         private final ProgressBar progress;
         private final ImageButton pauseButton;
         private final ImageButton cancelButton;
+        private final ImageButton tracksButton;
+        private final ImageView dragHandle;
 
         Holder(@NonNull View itemView) {
             super(itemView);
@@ -63,6 +94,8 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Hold
             progress = itemView.findViewById(R.id.downloadProgress);
             pauseButton = itemView.findViewById(R.id.downloadPause);
             cancelButton = itemView.findViewById(R.id.downloadCancel);
+            tracksButton = itemView.findViewById(R.id.downloadTracks);
+            dragHandle = itemView.findViewById(R.id.downloadDrag);
         }
 
         void bind(DownloadJob job) {
@@ -106,14 +139,29 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Hold
             boolean paused = job.status == DownloadJob.Status.PAUSED || job.pauseRequested;
             pauseButton.setVisibility(job.isActive() ? View.VISIBLE : View.GONE);
             pauseButton.setImageResource(paused ? R.drawable.ic_play : R.drawable.ic_pause);
-            pauseButton.setOnClickListener(v -> DownloadService.sendAction(
+            pauseButton.setOnClickListener(v -> DownloadService.sendJobAction(
                     v.getContext(), paused
-                            ? DownloadService.ACTION_RESUME_ALL
-                            : DownloadService.ACTION_PAUSE_ALL));
+                            ? DownloadService.ACTION_RESUME_JOB
+                            : DownloadService.ACTION_PAUSE_JOB, job.id));
 
             cancelButton.setVisibility(job.isActive() ? View.VISIBLE : View.GONE);
-            cancelButton.setOnClickListener(v -> DownloadService.sendAction(
-                    v.getContext(), DownloadService.ACTION_CANCEL_ALL));
+            cancelButton.setOnClickListener(v -> DownloadService.sendJobAction(
+                    v.getContext(), DownloadService.ACTION_CANCEL_JOB, job.id));
+            tracksButton.setVisibility(job.isPlaylist ? View.VISIBLE : View.GONE);
+            tracksButton.setOnClickListener(v -> listener.onOpenTracks(job.id));
+            dragHandle.setVisibility(job.isActive() ? View.VISIBLE : View.INVISIBLE);
+            dragHandle.setOnClickListener(v -> {
+                // Accessibility click target; dragging starts from touch-down below.
+            });
+            dragHandle.setOnTouchListener((v, event) -> {
+                if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN
+                        && job.isActive()) {
+                    listener.onStartDrag(this);
+                } else if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                    v.performClick();
+                }
+                return false;
+            });
         }
 
         private String statusText(DownloadJob job) {

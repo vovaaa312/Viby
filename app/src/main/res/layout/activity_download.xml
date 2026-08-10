@@ -71,6 +71,14 @@
             android:text="@string/downloads_header"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/download_queue_hint"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?android:attr/textColorSecondary" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/downloadsList"
             android:layout_width="match_parent"

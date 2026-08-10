@@ -250,7 +250,7 @@ public class PlayerFragment extends Fragment {
                 }
             }
         }
-        if (path == null) {
+        if (path == null || path.isEmpty() || !new java.io.File(path).isFile()) {
             currentWaveformPath = null;
             waveform.setWaveform(null);
             return;

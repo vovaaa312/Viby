@@ -29,16 +29,22 @@ import com.example.viby.R;
 import com.example.viby.VibyApp;
 import com.example.viby.data.Track;
 import com.example.viby.data.VibyDatabase;
+import com.example.viby.download.DownloadService;
 import com.example.viby.playback.PlaybackService;
 import com.example.viby.update.AppUpdateManager;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.yausername.youtubedl_android.YoutubeDL;
+import com.yausername.youtubedl_android.YoutubeDLRequest;
+import com.yausername.youtubedl_android.mapper.VideoInfo;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -47,6 +53,8 @@ public class MainActivity extends AppCompatActivity {
     private MaterialToolbar toolbar;
     private ViewPager2 pager;
     private AppUpdateManager appUpdateManager;
+    private final ExecutorService streamResolver = Executors.newSingleThreadExecutor();
+    private final AtomicLong streamRequestSequence = new AtomicLong();
 
     private ListenableFuture<MediaController> controllerFuture;
     /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
@@ -237,6 +245,7 @@ public class MainActivity extends AppCompatActivity {
         if (controller == null || tracks == null || active == null) {
             return;
         }
+        tracks = playableTracks(tracks);
 
         if (active.equals(loadedPlaylist)) {
             if (viewModel.isQueueCustomized()) {
@@ -300,6 +309,36 @@ public class MainActivity extends AppCompatActivity {
                 .setMediaId(String.valueOf(track.id))
                 .setMediaMetadata(metadata)
                 .build();
+    }
+
+    private static MediaItem toStreamMediaItem(Track track, String streamUrl) {
+        MediaMetadata metadata = new MediaMetadata.Builder()
+                .setTitle(track.title)
+                .setArtist(track.uploader)
+                .setArtworkUri(track.thumbnailUrl != null
+                        ? Uri.parse(track.thumbnailUrl) : null)
+                .setDurationMs(track.durationMs)
+                .build();
+        return new MediaItem.Builder()
+                .setUri(Uri.parse(streamUrl))
+                .setMediaId(String.valueOf(track.id))
+                .setMediaMetadata(metadata)
+                .build();
+    }
+
+    private static boolean isPlayableLocal(Track track) {
+        return track.downloaded && track.filePath != null && !track.filePath.isEmpty()
+                && new File(track.filePath).isFile();
+    }
+
+    private static List<Track> playableTracks(List<Track> tracks) {
+        List<Track> playable = new ArrayList<>();
+        for (Track track : tracks) {
+            if (isPlayableLocal(track)) {
+                playable.add(track);
+            }
+        }
+        return playable;
     }
 
     // ------------------------------------------------------------- for fragments
@@ -410,6 +449,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** После сортировки перestraивает очередь, сохраняя текущий трек и позицию. */
     private void resyncQueueOrder(String playlist, List<Track> sorted) {
+        sorted = playableTracks(sorted);
         MediaController controller = viewModel.controller.getValue();
         if (controller == null || !playlist.equals(loadedPlaylist)
                 || viewModel.isQueueCustomized()) {
@@ -441,6 +481,11 @@ public class MainActivity extends AppCompatActivity {
         if (controller == null || tracks == null || active == null) {
             return;
         }
+        if (!isPlayableLocal(track)) {
+            playPendingTrack(track, active);
+            return;
+        }
+        tracks = playableTracks(tracks);
         if (active.equals(loadedPlaylist)) {
             for (int i = 0; i < controller.getMediaItemCount(); i++) {
                 if (String.valueOf(track.id).equals(controller.getMediaItemAt(i).mediaId)) {
@@ -450,8 +495,84 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
-        loadQueue(controller, tracks, active,
-                Math.min(position, tracks.size() - 1), true);
+        int playablePosition = 0;
+        for (int i = 0; i < tracks.size(); i++) {
+            if (tracks.get(i).id == track.id) {
+                playablePosition = i;
+                break;
+            }
+        }
+        loadQueue(controller, tracks, active, playablePosition, true);
+    }
+
+    private void playPendingTrack(Track track, String playlist) {
+        if (track.videoId == null || track.videoId.isEmpty()
+                || track.sourceUrl == null || track.sourceUrl.isEmpty()) {
+            Toast.makeText(this, R.string.smart_stream_unavailable,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        DownloadService.prioritizeTrack(this, playlist, track.videoId);
+        Toast.makeText(this, R.string.smart_stream_preparing,
+                Toast.LENGTH_SHORT).show();
+        long requestId = streamRequestSequence.incrementAndGet();
+        streamResolver.execute(() -> {
+            try {
+                YoutubeDLRequest request = new YoutubeDLRequest(track.sourceUrl);
+                request.addOption("--no-playlist");
+                request.addOption("--format", "bestaudio[ext=m4a]/bestaudio/best");
+                if (com.example.viby.util.YtCookies.isLoggedIn(this)) {
+                    request.addOption("--cookies",
+                            com.example.viby.util.YtCookies.file(this).getAbsolutePath());
+                }
+                VideoInfo info = YoutubeDL.getInstance().getInfo(request);
+                String streamUrl = info.getUrl();
+                if (streamUrl == null || streamUrl.isEmpty()) {
+                    throw new IllegalStateException("yt-dlp returned no stream URL");
+                }
+                runOnUiThread(() -> {
+                    if (isDestroyed() || requestId != streamRequestSequence.get()) {
+                        return;
+                    }
+                    MediaController controller = viewModel.controller.getValue();
+                    List<Track> latestTracks = viewModel.tracks.getValue();
+                    if (controller == null || latestTracks == null) {
+                        return;
+                    }
+                    List<MediaItem> items = new ArrayList<>();
+                    int startIndex = 0;
+                    for (Track candidate : latestTracks) {
+                        if (candidate.id == track.id) {
+                            if (isPlayableLocal(candidate)) {
+                                items.add(toMediaItem(candidate));
+                            } else {
+                                items.add(toStreamMediaItem(candidate, streamUrl));
+                            }
+                            startIndex = items.size() - 1;
+                        } else if (isPlayableLocal(candidate)) {
+                            items.add(toMediaItem(candidate));
+                        }
+                    }
+                    if (items.isEmpty()) {
+                        return;
+                    }
+                    loadedPlaylist = playlist;
+                    viewModel.setQueuePlaylist(playlist);
+                    viewModel.setQueueCustomized(true);
+                    controller.setMediaItems(items, startIndex, 0L);
+                    controller.prepare();
+                    controller.play();
+                });
+            } catch (Exception e) {
+                android.util.Log.w("MainActivity", "Could not resolve stream", e);
+                runOnUiThread(() -> {
+                    if (!isDestroyed() && requestId == streamRequestSequence.get()) {
+                        Toast.makeText(this, R.string.smart_stream_failed,
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
     }
 
     /** Добавить треки в конец очереди воспроизведения (без изменения БД). */
@@ -507,8 +628,14 @@ public class MainActivity extends AppCompatActivity {
                     String ext = dot > 0 ? name.substring(dot) : "";
                     dest = new File(destDir, base + " [" + track.id + "]" + ext);
                 }
-                if (src.exists() && !src.renameTo(dest)) {
-                    continue; // файл не переехал — запись не трогаем
+                boolean sharedFile = !track.filePath.isEmpty()
+                        && dao.countFileReferences(track.filePath) > 1;
+                if (src.exists()) {
+                    boolean transferred = sharedFile
+                            ? copyTrackFile(src, dest) : src.renameTo(dest);
+                    if (!transferred) {
+                        continue; // файл не скопирован/не переехал — запись не трогаем
+                    }
                 }
                 track.playlistName = target;
                 track.youtubePosition = null;
@@ -545,14 +672,40 @@ public class MainActivity extends AppCompatActivity {
         VibyDatabase.dbExecutor.execute(() -> {
             var dao = VibyDatabase.get(this).trackDao();
             for (Track track : tracks) {
-                //noinspection ResultOfMethodCallIgnored
-                new File(track.filePath).delete();
                 dao.delete(track);
+                deleteFileIfUnreferenced(dao, track.filePath);
             }
             runOnUiThread(() -> Toast.makeText(this,
                     getString(R.string.tracks_deleted, tracks.size()),
                     Toast.LENGTH_SHORT).show());
         });
+    }
+
+    private static boolean copyTrackFile(File source, File destination) {
+        try (java.io.InputStream input = new java.io.FileInputStream(source);
+             java.io.OutputStream output = new java.io.FileOutputStream(destination)) {
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            return true;
+        } catch (java.io.IOException e) {
+            //noinspection ResultOfMethodCallIgnored
+            destination.delete();
+            android.util.Log.w("MainActivity", "shared track copy failed", e);
+            return false;
+        }
+    }
+
+    private static void deleteFileIfUnreferenced(
+            com.example.viby.data.TrackDao dao, String filePath) {
+        if (filePath == null || filePath.isEmpty()
+                || dao.countFileReferences(filePath) > 0) {
+            return;
+        }
+        //noinspection ResultOfMethodCallIgnored
+        new File(filePath).delete();
     }
 
     private void removeFromQueue(List<Track> tracks) {
@@ -578,6 +731,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        streamRequestSequence.incrementAndGet();
+        streamResolver.shutdownNow();
         if (appUpdateManager != null) {
             appUpdateManager.close();
             appUpdateManager = null;
@@ -599,6 +754,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        tracks = playableTracks(tracks);
         String currentId = controller.getCurrentMediaItem() != null
                 ? controller.getCurrentMediaItem().mediaId : null;
         long currentPosition = Math.max(0L, controller.getCurrentPosition());
@@ -662,16 +818,17 @@ public class MainActivity extends AppCompatActivity {
             var dao = VibyDatabase.get(this).trackDao();
             List<Track> tracks = dao.getPlaylistSync(name);
             for (Track track : tracks) {
-                //noinspection ResultOfMethodCallIgnored
-                new File(track.filePath).delete();
                 dao.delete(track);
+                deleteFileIfUnreferenced(dao, track.filePath);
             }
             File dir = com.example.viby.util.StorageHelper.playlistDir(this, name);
             File[] leftovers = dir.listFiles();
             if (leftovers != null) {
                 for (File file : leftovers) {
-                    //noinspection ResultOfMethodCallIgnored
-                    file.delete();
+                    if (dao.countFileReferences(file.getAbsolutePath()) == 0) {
+                        //noinspection ResultOfMethodCallIgnored
+                        file.delete();
+                    }
                 }
             }
             //noinspection ResultOfMethodCallIgnored

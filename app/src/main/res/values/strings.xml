@@ -125,6 +125,22 @@
     <string name="status_done_errors">Done, failed: %1$d</string>
     <string name="status_failed">Failed</string>
     <string name="status_canceled">Canceled</string>
+    <string name="reorder_download_job">Reorder download</string>
+    <string name="download_queue_hint">Hold and drag a playlist to change the download order</string>
+    <string name="download_track_queue_title">Playlist download order</string>
+    <string name="download_track_queue_hint">Waiting tracks can be held and dragged into any order</string>
+    <string name="download_track_queue_loading">Track list will appear after playlist info is loaded</string>
+    <string name="open_download_track_queue">Open playlist download order</string>
+    <string name="reorder_download_track">Reorder track download</string>
+    <string name="download_track_waiting">Waiting</string>
+    <string name="download_track_active">Downloading</string>
+    <string name="download_track_done">Downloaded</string>
+    <string name="download_track_failed">Failed</string>
+    <string name="pending_track_online">Pending download · tap to stream</string>
+    <string name="pending_track_actions_disabled">This track is still downloading; tap it to listen online</string>
+    <string name="smart_stream_preparing">Preparing online playback and prioritizing this track…</string>
+    <string name="smart_stream_unavailable">Online playback is unavailable for this track</string>
+    <string name="smart_stream_failed">Could not start online playback. The track remains first in the download queue.</string>
     <string name="error_playlist_empty">No videos found in the playlist</string>
     <string name="error_engine_init">yt-dlp failed to initialize</string>
     <string name="unit_kb">%1$s KB</string>
@@ -159,6 +175,10 @@
     <string name="add_from_url">From a YouTube link (single track)</string>
     <string name="tracks_added">Added: %1$d</string>
     <string name="importing_tracks">Importing…</string>
+    <string name="duplicate_track_title">Track already in playlist</string>
+    <string name="duplicate_track_message">“%1$s” is already in “%2$s”. Add it again?</string>
+    <string name="duplicate_track_add">Add again</string>
+    <string name="duplicate_track_added">Added again to “%1$s”</string>
 
     <!-- YouTube account -->
     <string name="menu_account">YouTube account</string>
