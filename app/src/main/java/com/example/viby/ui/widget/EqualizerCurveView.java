@@ -42,6 +42,7 @@ public final class EqualizerCurveView extends View {
     @Nullable
     private OnBandGainChangeListener listener;
     private int activeBand;
+    private boolean draggingBand;
 
     public EqualizerCurveView(Context context) {
         this(context, null);
@@ -103,8 +104,10 @@ public final class EqualizerCurveView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float leftLabels = dp(48);
-        float rightLabels = dp(52);
+        boolean landscape = getWidth() > getHeight();
+        float landscapeGutter = getWidth() * 0.10f;
+        float leftLabels = landscape ? Math.max(dp(56), landscapeGutter) : dp(48);
+        float rightLabels = landscape ? Math.max(dp(56), landscapeGutter) : dp(52);
         float verticalPadding = dp(10);
         chart.set(leftLabels, verticalPadding,
                 getWidth() - rightLabels, getHeight() - verticalPadding);
@@ -150,20 +153,35 @@ public final class EqualizerCurveView extends View {
         }
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                // In landscape the label gutters are intentionally left to the
+                // parent ScrollView, while the chart itself remains draggable.
+                if (event.getX() < chart.left || event.getX() > chart.right) {
+                    draggingBand = false;
+                    return false;
+                }
+                draggingBand = true;
                 requestFocus();
                 getParent().requestDisallowInterceptTouchEvent(true);
                 activeBand = bandNearestTo(event.getY());
                 updateActiveBandFromX(event.getX());
                 return true;
             case MotionEvent.ACTION_MOVE:
+                if (!draggingBand) {
+                    return false;
+                }
                 updateActiveBandFromX(event.getX());
                 return true;
             case MotionEvent.ACTION_UP:
+                if (!draggingBand) {
+                    return false;
+                }
                 updateActiveBandFromX(event.getX());
+                draggingBand = false;
                 getParent().requestDisallowInterceptTouchEvent(false);
                 performClick();
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                draggingBand = false;
                 getParent().requestDisallowInterceptTouchEvent(false);
                 return true;
             default:
