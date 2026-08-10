@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/coverCard"
+        android:layout_width="112dp"
+        android:layout_height="112dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="4dp"
+        app:cardBackgroundColor="@color/viby_surface_high"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="0dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/coverImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/cover_desc"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_music_note" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <TextView
+        android:id="@+id/trackTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="18dp"
+        android:layout_marginEnd="24dp"
+        android:ellipsize="marquee"
+        android:marqueeRepeatLimit="marquee_forever"
+        android:singleLine="true"
+        android:text="@string/no_track"
+        android:textAppearance="?attr/textAppearanceTitleMedium"
+        android:textColor="@color/viby_text"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@id/trackArtist"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/coverCard"
+        app:layout_constraintTop_toTopOf="@id/coverCard"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <TextView
+        android:id="@+id/trackArtist"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="18dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="24dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="@color/viby_text_secondary"
+        app:layout_constraintBottom_toBottomOf="@id/coverCard"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/coverCard"
+        app:layout_constraintTop_toBottomOf="@id/trackTitle" />
+
+    <com.example.viby.ui.widget.WaveformView
+        android:id="@+id/waveform"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="2dp"
+        android:minHeight="24dp"
+        app:layout_constraintBottom_toTopOf="@id/positionText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHeight_max="44dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/coverCard" />
+
+    <TextView
+        android:id="@+id/positionText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginBottom="3dp"
+        android:text="0:00"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="@color/viby_text_secondary"
+        app:layout_constraintBottom_toTopOf="@id/controlPanel"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/durationText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="20dp"
+        android:text="0:00"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="@color/viby_text_secondary"
+        app:layout_constraintBaseline_toBaselineOf="@id/positionText"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/controlPanel"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:background="@color/viby_control_panel"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <ImageButton
+            android:id="@+id/shuffleButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_shuffle"
+            android:padding="20dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_shuffle"
+            app:tint="@color/viby_on_control_panel" />
+
+        <ImageButton
+            android:id="@+id/prevButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_prev"
+            android:padding="17dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_skip_previous"
+            app:tint="@color/viby_on_control_panel" />
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/playButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|center_horizontal"
+                android:layout_marginTop="1dp"
+                android:contentDescription="@string/btn_play_pause"
+                android:src="@drawable/ic_play"
+                app:backgroundTint="@color/viby_on_accent"
+                app:elevation="0dp"
+                app:fabCustomSize="48dp"
+                app:tint="@color/viby_accent" />
+
+            <TextView
+                android:id="@+id/trackCounter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="@color/viby_on_control_panel"
+                tools:text="27/38" />
+        </FrameLayout>
+
+        <ImageButton
+            android:id="@+id/nextButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_next"
+            android:padding="17dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_skip_next"
+            app:tint="@color/viby_on_control_panel" />
+
+        <ImageButton
+            android:id="@+id/repeatButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_repeat"
+            android:padding="20dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_repeat"
+            app:tint="@color/viby_on_control_panel" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
