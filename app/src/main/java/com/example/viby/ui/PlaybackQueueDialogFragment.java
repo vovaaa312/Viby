@@ -16,6 +16,7 @@ import androidx.media3.common.Timeline;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionCommand;
 import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.viby.R;
@@ -38,6 +39,7 @@ public class PlaybackQueueDialogFragment extends BottomSheetDialogFragment {
     private ItemTouchHelper itemTouchHelper;
     private boolean dragging;
     private boolean refreshPending;
+    private boolean initialCurrentPositionApplied;
 
     private final Player.Listener playerListener = new Player.Listener() {
         @Override
@@ -69,6 +71,7 @@ public class PlaybackQueueDialogFragment extends BottomSheetDialogFragment {
         viewModel = new ViewModelProvider(requireActivity()).get(PlayerViewModel.class);
         empty = view.findViewById(R.id.playbackQueueEmpty);
         list = view.findViewById(R.id.playbackQueueList);
+        initialCurrentPositionApplied = false;
         adapter = new PlaybackQueueAdapter(new PlaybackQueueAdapter.Listener() {
             @Override
             public void onPlay(int position) {
@@ -206,6 +209,47 @@ public class PlaybackQueueDialogFragment extends BottomSheetDialogFragment {
         }
         adapter.submit(items, currentId);
         empty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+        scrollCurrentItemToTopOnce(items);
+    }
+
+    /**
+     * Keeps the full editable queue, but opens it at the item that is playing now.
+     * The position is resolved through the player's index rather than mediaId so
+     * duplicate tracks in the queue still scroll to the correct occurrence.
+     */
+    private void scrollCurrentItemToTopOnce(
+            List<PlaybackQueueAdapter.QueueItem> items) {
+        if (initialCurrentPositionApplied || controller == null || list == null) {
+            return;
+        }
+        int currentPlayerIndex = controller.getCurrentMediaItemIndex();
+        if (currentPlayerIndex == androidx.media3.common.C.INDEX_UNSET) {
+            return;
+        }
+        int currentDisplayPosition = RecyclerView.NO_POSITION;
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).playerIndex == currentPlayerIndex) {
+                currentDisplayPosition = i;
+                break;
+            }
+        }
+        if (currentDisplayPosition == RecyclerView.NO_POSITION) {
+            return;
+        }
+
+        initialCurrentPositionApplied = true;
+        int position = currentDisplayPosition;
+        list.post(() -> {
+            if (list == null) {
+                return;
+            }
+            RecyclerView.LayoutManager manager = list.getLayoutManager();
+            if (manager instanceof LinearLayoutManager) {
+                ((LinearLayoutManager) manager).scrollToPositionWithOffset(position, 0);
+            } else {
+                list.scrollToPosition(position);
+            }
+        });
     }
 
     private void appendItemsInPlaybackOrder(
