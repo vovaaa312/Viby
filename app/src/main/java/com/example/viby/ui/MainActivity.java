@@ -7,8 +7,12 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.app.PendingIntent;
+import android.util.Log;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.IntentSenderRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -33,7 +37,13 @@ import com.example.viby.data.Track;
 import com.example.viby.data.VibyDatabase;
 import com.example.viby.download.DownloadService;
 import com.example.viby.playback.PlaybackService;
+import com.example.viby.sync.YoutubePlaylistSync;
 import com.example.viby.update.AppUpdateManager;
+import com.google.android.gms.auth.api.identity.AuthorizationRequest;
+import com.google.android.gms.auth.api.identity.AuthorizationResult;
+import com.google.android.gms.auth.api.identity.Identity;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.Scope;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -47,8 +57,13 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public class MainActivity extends AppCompatActivity {
+
+    private static final String TAG = "MainActivity";
+    private static final String YOUTUBE_WRITE_SCOPE =
+            "https://www.googleapis.com/auth/youtube.force-ssl";
 
     private PlayerViewModel viewModel;
     private DrawerLayout drawerLayout;
@@ -56,7 +71,29 @@ public class MainActivity extends AppCompatActivity {
     private ViewPager2 pager;
     private AppUpdateManager appUpdateManager;
     private final ExecutorService streamResolver = Executors.newSingleThreadExecutor();
+    private final ExecutorService youtubeSyncExecutor = Executors.newSingleThreadExecutor();
     private final AtomicLong streamRequestSequence = new AtomicLong();
+    private YoutubePlaylistSync youtubePlaylistSync;
+    private Consumer<String> pendingYoutubeTokenAction;
+    private Consumer<Exception> pendingYoutubeAuthError;
+
+    private final ActivityResultLauncher<IntentSenderRequest> youtubeAuthorizationLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.StartIntentSenderForResult(), result -> {
+                        if (result.getData() == null) {
+                            finishYoutubeAuthorization(null, new IllegalStateException(
+                                    getString(R.string.youtube_sync_auth_cancelled)));
+                            return;
+                        }
+                        try {
+                            AuthorizationResult authorization = Identity
+                                    .getAuthorizationClient(this)
+                                    .getAuthorizationResultFromIntent(result.getData());
+                            finishYoutubeAuthorization(authorization, null);
+                        } catch (ApiException e) {
+                            finishYoutubeAuthorization(null, e);
+                        }
+                    });
 
     private ListenableFuture<MediaController> controllerFuture;
     /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
@@ -68,6 +105,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         viewModel = new ViewModelProvider(this).get(PlayerViewModel.class);
+        youtubePlaylistSync = new YoutubePlaylistSync(this);
 
         drawerLayout = findViewById(R.id.drawerLayout);
         toolbar = findViewById(R.id.toolbar);
@@ -147,6 +185,11 @@ public class MainActivity extends AppCompatActivity {
                     .show();
         });
 
+        findViewById(R.id.drawerPlaylistSync).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            showPlaylistSyncDialog();
+        });
+
         RecyclerView playlistsList = findViewById(R.id.playlistsList);
         PlaylistsAdapter adapter = new PlaylistsAdapter(new PlaylistsAdapter.Listener() {
             @Override
@@ -183,6 +226,247 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(this, R.string.ytdlp_updated, Toast.LENGTH_SHORT).show();
                 }
             });
+        });
+    }
+
+    // ------------------------------------------------ YouTube playlist sync
+
+    private void showPlaylistSyncDialog() {
+        String playlist = viewModel.getActivePlaylistName();
+        if (playlist == null) {
+            return;
+        }
+        VibyDatabase.dbExecutor.execute(() -> {
+            com.example.viby.data.PlaylistSource source = VibyDatabase.get(this)
+                    .playlistSourceDao().getSync(playlist);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                if (source == null) {
+                    Toast.makeText(this, R.string.refresh_no_source,
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (source.youtubeSyncEnabled) {
+                    new MaterialAlertDialogBuilder(this)
+                            .setTitle(R.string.youtube_sync_title)
+                            .setMessage(getString(
+                                    R.string.youtube_sync_enabled_message, playlist))
+                            .setPositiveButton(R.string.youtube_sync_disable,
+                                    (dialog, which) -> disableYoutubeSync(playlist))
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show();
+                } else {
+                    new MaterialAlertDialogBuilder(this)
+                            .setTitle(R.string.youtube_sync_title)
+                            .setMessage(getString(
+                                    R.string.youtube_sync_enable_message, playlist))
+                            .setPositiveButton(R.string.youtube_sync_enable,
+                                    (dialog, which) -> enableYoutubeSync(playlist))
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show();
+                }
+            });
+        });
+    }
+
+    private void enableYoutubeSync(String playlist) {
+        Toast.makeText(this, R.string.youtube_sync_authorizing,
+                Toast.LENGTH_SHORT).show();
+        requestYoutubeAccess(accessToken -> {
+            Toast.makeText(this, R.string.youtube_sync_enabling,
+                    Toast.LENGTH_LONG).show();
+            youtubeSyncExecutor.execute(() -> {
+                try {
+                    YoutubePlaylistSync.EnableResult result =
+                            youtubePlaylistSync.enable(playlist, accessToken);
+                    runOnUiThread(() -> Toast.makeText(this,
+                            getString(R.string.youtube_sync_enabled,
+                                    result.remoteTitle, result.linkedTracks),
+                            Toast.LENGTH_LONG).show());
+                } catch (Exception e) {
+                    showYoutubeSyncError(e);
+                }
+            });
+        }, this::showYoutubeSyncError);
+    }
+
+    private void disableYoutubeSync(String playlist) {
+        VibyDatabase.dbExecutor.execute(() -> {
+            youtubePlaylistSync.disable(playlist);
+            runOnUiThread(() -> Toast.makeText(this,
+                    R.string.youtube_sync_disabled, Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    /** Entry point used by the playlist screen for a single YouTube URL. */
+    void addTrackByUrl(String url, String playlist) {
+        VibyDatabase.dbExecutor.execute(() -> {
+            com.example.viby.data.PlaylistSource source = VibyDatabase.get(this)
+                    .playlistSourceDao().getSync(playlist);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                if (source == null || !source.youtubeSyncEnabled) {
+                    DuplicateTrackPrompt.enqueue(this, url, playlist,
+                            false, null);
+                    return;
+                }
+                String[] choices = {
+                        getString(R.string.youtube_sync_add_both),
+                        getString(R.string.youtube_sync_local_only),
+                };
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.youtube_sync_add_title)
+                        .setItems(choices, (dialog, which) -> {
+                            if (which == 0) {
+                                addTrackToYoutube(url, playlist);
+                            } else {
+                                DuplicateTrackPrompt.enqueue(this, url,
+                                        playlist, false, null);
+                            }
+                        })
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            });
+        });
+    }
+
+    private void addTrackToYoutube(String url, String playlist) {
+        String videoId = com.example.viby.util.YoutubeUrlParser.videoId(url);
+        if (videoId == null) {
+            Toast.makeText(this, R.string.error_invalid_url,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        VibyDatabase.dbExecutor.execute(() -> {
+            Track duplicate = VibyDatabase.get(this).trackDao()
+                    .getDownloadedByVideoIdSync(playlist, videoId);
+            runOnUiThread(() -> {
+                if (duplicate == null) {
+                    performAddTrackToYoutube(url, playlist);
+                    return;
+                }
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.duplicate_track_title)
+                        .setMessage(getString(R.string.duplicate_track_message,
+                                duplicate.title, playlist))
+                        .setPositiveButton(R.string.duplicate_track_add,
+                                (dialog, which) ->
+                                        performAddTrackToYoutube(url, playlist))
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            });
+        });
+    }
+
+    private void performAddTrackToYoutube(String url, String playlist) {
+        Toast.makeText(this, R.string.youtube_sync_authorizing,
+                Toast.LENGTH_SHORT).show();
+        requestYoutubeAccess(accessToken -> {
+            Toast.makeText(this, R.string.youtube_sync_adding,
+                    Toast.LENGTH_SHORT).show();
+            youtubeSyncExecutor.execute(() -> {
+                try {
+                    YoutubePlaylistSync.AddResult result = youtubePlaylistSync
+                            .addTrackAtStart(playlist, url, accessToken);
+                    runOnUiThread(() -> {
+                        if (result.downloadRequired) {
+                            DownloadService.enqueue(this, url, playlist, false);
+                        }
+                        Toast.makeText(this, R.string.youtube_sync_added,
+                                Toast.LENGTH_LONG).show();
+                    });
+                } catch (Exception e) {
+                    showYoutubeSyncError(e);
+                }
+            });
+        }, this::showYoutubeSyncError);
+    }
+
+    private void requestYoutubeAccess(Consumer<String> onToken,
+                                      Consumer<Exception> onError) {
+        if (pendingYoutubeTokenAction != null) {
+            onError.accept(new IllegalStateException(
+                    getString(R.string.youtube_sync_authorizing)));
+            return;
+        }
+        pendingYoutubeTokenAction = onToken;
+        pendingYoutubeAuthError = onError;
+        AuthorizationRequest request = AuthorizationRequest.builder()
+                .setRequestedScopes(java.util.Collections.singletonList(
+                        new Scope(YOUTUBE_WRITE_SCOPE)))
+                .build();
+        Identity.getAuthorizationClient(this).authorize(request)
+                .addOnSuccessListener(authorization -> {
+                    if (authorization.hasResolution()) {
+                        PendingIntent pendingIntent = authorization.getPendingIntent();
+                        if (pendingIntent == null) {
+                            finishYoutubeAuthorization(null,
+                                    new IllegalStateException(
+                                            getString(R.string.youtube_sync_auth_cancelled)));
+                            return;
+                        }
+                        youtubeAuthorizationLauncher.launch(
+                                new IntentSenderRequest.Builder(
+                                        pendingIntent.getIntentSender()).build());
+                    } else {
+                        finishYoutubeAuthorization(authorization, null);
+                    }
+                })
+                .addOnFailureListener(error ->
+                        finishYoutubeAuthorization(null,
+                                error instanceof Exception
+                                        ? (Exception) error
+                                        : new Exception(error)));
+    }
+
+    private void finishYoutubeAuthorization(AuthorizationResult authorization,
+                                            Exception error) {
+        Consumer<String> success = pendingYoutubeTokenAction;
+        Consumer<Exception> failure = pendingYoutubeAuthError;
+        pendingYoutubeTokenAction = null;
+        pendingYoutubeAuthError = null;
+        String accessToken = authorization != null
+                ? authorization.getAccessToken() : null;
+        if (error == null && accessToken != null && !accessToken.isEmpty()) {
+            if (success != null) {
+                success.accept(accessToken);
+            }
+        } else if (failure != null) {
+            failure.accept(error != null ? error : new IllegalStateException(
+                    getString(R.string.youtube_sync_auth_cancelled)));
+        }
+    }
+
+    private void showYoutubeSyncError(Exception error) {
+        Log.w(TAG, "YouTube synchronization failed", error);
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            String message;
+            if (error instanceof ApiException
+                    && ((ApiException) error).getStatusCode() == 10) {
+                message = getString(R.string.youtube_sync_oauth_not_configured);
+            } else if (error instanceof ApiException) {
+                ApiException apiError = (ApiException) error;
+                message = "Google OAuth " + apiError.getStatusCode();
+                if (apiError.getStatusMessage() != null
+                        && !apiError.getStatusMessage().isEmpty()) {
+                    message += ": " + apiError.getStatusMessage();
+                }
+            } else {
+                message = error.getMessage();
+            }
+            if (message == null || message.trim().isEmpty()) {
+                message = error.getClass().getSimpleName();
+            }
+            Toast.makeText(this,
+                    getString(R.string.youtube_sync_failed, message),
+                    Toast.LENGTH_LONG).show();
         });
     }
 
@@ -653,6 +937,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 track.playlistName = target;
                 track.youtubePosition = null;
+                track.youtubePlaylistItemId = null;
                 if (src.exists() || dest.exists()) {
                     track.filePath = dest.getAbsolutePath();
                 }
@@ -668,11 +953,55 @@ public class MainActivity extends AppCompatActivity {
 
     /** Убрать записи из плейлиста (файлы остаются на диске). */
     void removeTracksFromPlaylist(List<Track> tracks) {
+        deleteTracksWithSyncChoice(tracks, false);
+    }
+
+    /** Удалить треки с устройства: файлы + записи + из очереди. */
+    void deleteTracksFromDevice(List<Track> tracks) {
+        deleteTracksWithSyncChoice(tracks, true);
+    }
+
+    private void deleteTracksWithSyncChoice(List<Track> tracks, boolean deleteFiles) {
+        if (tracks.isEmpty()) {
+            return;
+        }
+        String playlist = tracks.get(0).playlistName;
+        VibyDatabase.dbExecutor.execute(() -> {
+            com.example.viby.data.PlaylistSource source = VibyDatabase.get(this)
+                    .playlistSourceDao().getSync(playlist);
+            runOnUiThread(() -> {
+                if (source == null || !source.youtubeSyncEnabled) {
+                    deleteTracksLocally(tracks, deleteFiles);
+                    return;
+                }
+                String[] choices = {
+                        getString(R.string.youtube_sync_delete_both),
+                        getString(R.string.youtube_sync_local_only),
+                };
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.youtube_sync_delete_title)
+                        .setItems(choices, (dialog, which) -> {
+                            if (which == 0) {
+                                deleteTracksFromYoutube(playlist, tracks, deleteFiles);
+                            } else {
+                                deleteTracksLocally(tracks, deleteFiles);
+                            }
+                        })
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            });
+        });
+    }
+
+    private void deleteTracksLocally(List<Track> tracks, boolean deleteFiles) {
         removeFromQueue(tracks);
         VibyDatabase.dbExecutor.execute(() -> {
             var dao = VibyDatabase.get(this).trackDao();
             for (Track track : tracks) {
                 dao.delete(track);
+                if (deleteFiles) {
+                    deleteFileIfUnreferenced(dao, track.filePath);
+                }
             }
             runOnUiThread(() -> Toast.makeText(this,
                     getString(R.string.tracks_deleted, tracks.size()),
@@ -680,19 +1009,38 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** Удалить треки с устройства: файлы + записи + из очереди. */
-    void deleteTracksFromDevice(List<Track> tracks) {
-        removeFromQueue(tracks);
-        VibyDatabase.dbExecutor.execute(() -> {
-            var dao = VibyDatabase.get(this).trackDao();
-            for (Track track : tracks) {
-                dao.delete(track);
-                deleteFileIfUnreferenced(dao, track.filePath);
-            }
-            runOnUiThread(() -> Toast.makeText(this,
-                    getString(R.string.tracks_deleted, tracks.size()),
-                    Toast.LENGTH_SHORT).show());
-        });
+    private void deleteTracksFromYoutube(String playlist, List<Track> tracks,
+                                         boolean deleteFiles) {
+        Toast.makeText(this, R.string.youtube_sync_authorizing,
+                Toast.LENGTH_SHORT).show();
+        requestYoutubeAccess(accessToken -> {
+            Toast.makeText(this, R.string.youtube_sync_deleting,
+                    Toast.LENGTH_LONG).show();
+            youtubeSyncExecutor.execute(() -> {
+                try {
+                    YoutubePlaylistSync.DeleteResult result = youtubePlaylistSync
+                            .deleteTracks(playlist, tracks, deleteFiles, accessToken);
+                    runOnUiThread(() -> {
+                        removeFromQueue(result.removed);
+                        if (result.failedCount == 0) {
+                            Toast.makeText(this,
+                                    getString(R.string.tracks_deleted,
+                                            result.removed.size()),
+                                    Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(this,
+                                    getString(R.string.youtube_sync_delete_partial,
+                                            result.removed.size(), result.failedCount,
+                                            result.firstError != null
+                                                    ? result.firstError : "YouTube API"),
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } catch (Exception e) {
+                    showYoutubeSyncError(e);
+                }
+            });
+        }, this::showYoutubeSyncError);
     }
 
     private static boolean copyTrackFile(File source, File destination) {
@@ -747,6 +1095,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         streamRequestSequence.incrementAndGet();
         streamResolver.shutdownNow();
+        youtubeSyncExecutor.shutdownNow();
+        pendingYoutubeTokenAction = null;
+        pendingYoutubeAuthError = null;
         if (appUpdateManager != null) {
             appUpdateManager.close();
             appUpdateManager = null;

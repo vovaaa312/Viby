@@ -341,8 +341,8 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                     String url = input.getText().toString().trim();
                     String playlist = viewModel.getActivePlaylistName();
                     if (url.contains("youtube.com/") || url.contains("youtu.be/")) {
-                        DuplicateTrackPrompt.enqueue(requireActivity(), url,
-                                playlist, false, null);
+                        ((MainActivity) requireActivity()).addTrackByUrl(
+                                url, playlist);
                     } else {
                         android.widget.Toast.makeText(requireContext(),
                                 R.string.error_invalid_url,

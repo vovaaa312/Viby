@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Database(entities = {Track.class, PlaylistSource.class, PendingDownload.class},
-        version = 5, exportSchema = false)
+        version = 6, exportSchema = false)
 public abstract class VibyDatabase extends RoomDatabase {
 
     private static volatile VibyDatabase instance;
@@ -73,6 +73,20 @@ public abstract class VibyDatabase extends RoomDatabase {
         }
     };
 
+    private static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `playlist_sources` "
+                    + "ADD COLUMN `youtubePlaylistId` TEXT");
+            db.execSQL("ALTER TABLE `playlist_sources` "
+                    + "ADD COLUMN `youtubeSyncEnabled` INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `playlist_sources` "
+                    + "ADD COLUMN `youtubeOwnerChannelId` TEXT");
+            db.execSQL("ALTER TABLE `tracks` "
+                    + "ADD COLUMN `youtubePlaylistItemId` TEXT");
+        }
+    };
+
     public static VibyDatabase get(Context context) {
         if (instance == null) {
             synchronized (VibyDatabase.class) {
@@ -82,7 +96,7 @@ public abstract class VibyDatabase extends RoomDatabase {
                                     VibyDatabase.class,
                                     "viby.db")
                             .addMigrations(MIGRATION_1_2, MIGRATION_2_3,
-                                    MIGRATION_3_4, MIGRATION_4_5)
+                                    MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                             .build();
                 }
             }

@@ -190,6 +190,34 @@
     <string name="yt_playlists_error">Не удалось загрузить плейлисты. Возможно, сессия протухла.</string>
     <string name="yt_playlists_relogin">Войти заново</string>
 
+    <!-- Официальная синхронизация плейлистов YouTube -->
+    <string name="menu_playlist_sync">Синхронизация с YouTube</string>
+    <string name="youtube_sync_title">Синхронизация с YouTube</string>
+    <string name="youtube_sync_enable_message">Связать «%1$s» с оригинальным плейлистом YouTube? После этого добавления и подтверждённые удаления можно применять к обеим копиям.</string>
+    <string name="youtube_sync_enabled_message">Синхронизация включена для «%1$s».</string>
+    <string name="youtube_sync_enable">Включить</string>
+    <string name="youtube_sync_disable">Отключить</string>
+    <string name="youtube_sync_authorizing">Запрашиваю доступ к YouTube…</string>
+    <string name="youtube_sync_enabling">Проверяю владельца плейлиста и сопоставляю треки…</string>
+    <string name="youtube_sync_enabled">Синхронизация с «%1$s» включена · связано треков: %2$d</string>
+    <string name="youtube_sync_disabled">Синхронизация с YouTube отключена</string>
+    <string name="youtube_sync_failed">Ошибка синхронизации с YouTube: %1$s</string>
+    <string name="youtube_sync_auth_cancelled">Авторизация YouTube отменена</string>
+    <string name="youtube_sync_oauth_not_configured">В Google Cloud не настроен OAuth-клиент для com.example.viby и этого сертификата подписи</string>
+    <string name="youtube_sync_not_owner">Этот плейлист не принадлежит выбранному Google-аккаунту</string>
+    <string name="youtube_sync_not_enabled">Для этого плейлиста синхронизация с YouTube не включена</string>
+    <string name="youtube_sync_invalid_source">Не удалось определить ID оригинального плейлиста YouTube</string>
+    <string name="youtube_sync_track_pending">Дождитесь окончания загрузки уже добавленной копии этого трека</string>
+    <string name="youtube_sync_add_title">Добавить трек</string>
+    <string name="youtube_sync_add_both">В Viby и YouTube</string>
+    <string name="youtube_sync_local_only">Только в Viby</string>
+    <string name="youtube_sync_adding">Добавляю трек в YouTube…</string>
+    <string name="youtube_sync_added">Добавлено в Viby и YouTube</string>
+    <string name="youtube_sync_delete_title">Удалить также на YouTube?</string>
+    <string name="youtube_sync_delete_both">Из Viby и YouTube</string>
+    <string name="youtube_sync_deleting">Удаляю из YouTube…</string>
+    <string name="youtube_sync_delete_partial">Удалено: %1$d · ошибок YouTube: %2$d (%3$s)</string>
+
     <!-- Misc -->
     <string name="menu_playlists_header">Плейлисты</string>
     <string name="track_deleted">Трек удалён</string>

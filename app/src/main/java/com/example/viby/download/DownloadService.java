@@ -499,9 +499,17 @@ public class DownloadService extends Service {
         job.title = playlistTitle;
 
         // запоминаем источник — для кнопки «обновить плейлист»
-        com.example.viby.data.PlaylistSource source = new com.example.viby.data.PlaylistSource();
+        com.example.viby.data.PlaylistSource source =
+                VibyDatabase.get(this).playlistSourceDao().getSync(playlist);
+        if (source == null) {
+            source = new com.example.viby.data.PlaylistSource();
+        }
         source.playlistName = playlist;
         source.sourceUrl = job.url;
+        if (source.youtubePlaylistId == null) {
+            source.youtubePlaylistId =
+                    com.example.viby.util.YoutubeUrlParser.playlistId(job.url);
+        }
         source.updatedAt = System.currentTimeMillis();
         VibyDatabase.get(this).playlistSourceDao().upsert(source);
 

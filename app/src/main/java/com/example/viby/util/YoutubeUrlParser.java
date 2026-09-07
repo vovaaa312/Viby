@@ -49,6 +49,28 @@ public final class YoutubeUrlParser {
         return null;
     }
 
+    /** Extracts the playlist id from playlist, watch and YouTube Music URLs. */
+    @Nullable
+    public static String playlistId(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            URI uri = new URI(url.trim());
+            String host = uri.getHost();
+            if (host == null) {
+                return null;
+            }
+            host = host.toLowerCase(Locale.ROOT);
+            if (!host.equals("youtube.com") && !host.endsWith(".youtube.com")) {
+                return null;
+            }
+            return queryParameter(uri.getRawQuery(), "list");
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     @Nullable
     private static String firstPathSegment(@Nullable String path) {
         if (path == null) {
