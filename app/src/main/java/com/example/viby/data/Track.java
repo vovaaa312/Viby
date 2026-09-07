@@ -37,6 +37,9 @@ public class Track {
     /** Position in the source YouTube playlist; null for local-only tracks. */
     public Integer youtubePosition;
 
+    /** ID of this exact occurrence in a YouTube playlist; differs from videoId. */
+    public String youtubePlaylistItemId;
+
     public long createdAt;
 
     /** True once filePath points to a complete local audio file. */

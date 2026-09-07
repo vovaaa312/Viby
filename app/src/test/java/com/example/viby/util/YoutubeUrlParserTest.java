@@ -25,4 +25,16 @@ public class YoutubeUrlParserTest {
         assertNull(YoutubeUrlParser.videoId(
                 "https://www.youtube.com/playlist?list=PL123"));
     }
+
+    @Test
+    public void extractsPlaylistIdsFromYoutubeUrls() {
+        assertEquals("PL123", YoutubeUrlParser.playlistId(
+                "https://www.youtube.com/playlist?list=PL123"));
+        assertEquals("PL_MUSIC", YoutubeUrlParser.playlistId(
+                "https://music.youtube.com/watch?v=abcdefghijk&list=PL_MUSIC"));
+        assertNull(YoutubeUrlParser.playlistId(
+                "https://example.com/playlist?list=PL123"));
+        assertNull(YoutubeUrlParser.playlistId(
+                "https://www.youtube.com/watch?v=abcdefghijk"));
+    }
 }

@@ -79,6 +79,18 @@
             android:textAppearance="?attr/textAppearanceBodyLarge"
             app:drawableStartCompat="@drawable/ic_account" />
 
+        <TextView
+            android:id="@+id/drawerPlaylistSync"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:drawablePadding="16dp"
+            android:gravity="center_vertical"
+            android:padding="16dp"
+            android:text="@string/menu_playlist_sync"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            app:drawableStartCompat="@drawable/ic_update" />
+
         <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />

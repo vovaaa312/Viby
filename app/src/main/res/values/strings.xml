@@ -191,6 +191,34 @@
     <string name="yt_playlists_error">Could not load playlists. The session may have expired.</string>
     <string name="yt_playlists_relogin">Sign in again</string>
 
+    <!-- Official YouTube playlist synchronization -->
+    <string name="menu_playlist_sync">YouTube playlist sync</string>
+    <string name="youtube_sync_title">YouTube synchronization</string>
+    <string name="youtube_sync_enable_message">Link “%1$s” with its original YouTube playlist? Additions and confirmed deletions can then be applied to both copies.</string>
+    <string name="youtube_sync_enabled_message">Synchronization is enabled for “%1$s”.</string>
+    <string name="youtube_sync_enable">Enable</string>
+    <string name="youtube_sync_disable">Disable</string>
+    <string name="youtube_sync_authorizing">Requesting YouTube access…</string>
+    <string name="youtube_sync_enabling">Checking playlist ownership and matching tracks…</string>
+    <string name="youtube_sync_enabled">Synchronized with “%1$s” · linked tracks: %2$d</string>
+    <string name="youtube_sync_disabled">YouTube synchronization disabled</string>
+    <string name="youtube_sync_failed">YouTube synchronization failed: %1$s</string>
+    <string name="youtube_sync_auth_cancelled">YouTube authorization was cancelled</string>
+    <string name="youtube_sync_oauth_not_configured">Google OAuth client is not configured for com.example.viby and this signing certificate</string>
+    <string name="youtube_sync_not_owner">This playlist is not owned by the selected Google account</string>
+    <string name="youtube_sync_not_enabled">YouTube synchronization is not enabled for this playlist</string>
+    <string name="youtube_sync_invalid_source">The original YouTube playlist ID could not be found</string>
+    <string name="youtube_sync_track_pending">Wait until the existing copy of this track finishes downloading</string>
+    <string name="youtube_sync_add_title">Add track</string>
+    <string name="youtube_sync_add_both">Viby and YouTube</string>
+    <string name="youtube_sync_local_only">Only Viby</string>
+    <string name="youtube_sync_adding">Adding to YouTube…</string>
+    <string name="youtube_sync_added">Added to Viby and YouTube</string>
+    <string name="youtube_sync_delete_title">Apply deletion to YouTube?</string>
+    <string name="youtube_sync_delete_both">Viby and YouTube</string>
+    <string name="youtube_sync_deleting">Deleting from YouTube…</string>
+    <string name="youtube_sync_delete_partial">Removed: %1$d · failed on YouTube: %2$d (%3$s)</string>
+
     <!-- Misc -->
     <string name="menu_playlists_header">Playlists</string>
     <string name="track_deleted">Track deleted</string>
