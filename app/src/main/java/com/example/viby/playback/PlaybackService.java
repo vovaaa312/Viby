@@ -10,7 +10,10 @@ import android.os.Bundle;
 import androidx.annotation.Nullable;
 import androidx.annotation.NonNull;
 import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
+import androidx.media3.common.Timeline;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
@@ -23,6 +26,9 @@ import com.example.viby.ui.MainActivity;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Фоновое воспроизведение через Media3: MediaSession даёт системное
  * уведомление с управлением, аудиофокус и паузу при отключении наушников.
@@ -31,9 +37,14 @@ public class PlaybackService extends MediaSessionService {
 
     public static final String ACTION_SET_SHUFFLE_ORDER =
             "com.example.viby.action.SET_SHUFFLE_ORDER";
+    public static final String ACTION_INSERT_AFTER_CURRENT =
+            "com.example.viby.action.INSERT_AFTER_CURRENT";
     public static final String EXTRA_SHUFFLE_ORDER = "shuffle_order";
+    public static final String EXTRA_MEDIA_ITEMS = "media_items";
     private static final SessionCommand SET_SHUFFLE_ORDER_COMMAND =
             new SessionCommand(ACTION_SET_SHUFFLE_ORDER, Bundle.EMPTY);
+    private static final SessionCommand INSERT_AFTER_CURRENT_COMMAND =
+            new SessionCommand(ACTION_INSERT_AFTER_CURRENT, Bundle.EMPTY);
 
     private MediaSession mediaSession;
     private ExoPlayer player;
@@ -95,6 +106,7 @@ public class PlaybackService extends MediaSessionService {
             SessionCommands commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
                     .buildUpon()
                     .add(SET_SHUFFLE_ORDER_COMMAND)
+                    .add(INSERT_AFTER_CURRENT_COMMAND)
                     .build();
             return new MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(commands)
@@ -103,13 +115,41 @@ public class PlaybackService extends MediaSessionService {
 
         @NonNull
         @Override
+        @UnstableApi
         public ListenableFuture<SessionResult> onCustomCommand(
                 @NonNull MediaSession session,
                 @NonNull MediaSession.ControllerInfo controllerInfo,
                 @NonNull SessionCommand customCommand,
                 @NonNull Bundle args) {
-            if (!ACTION_SET_SHUFFLE_ORDER.equals(customCommand.customAction)
-                    || player == null) {
+            if (player == null) {
+                return Futures.immediateFuture(
+                        new SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED));
+            }
+
+            if (ACTION_INSERT_AFTER_CURRENT.equals(customCommand.customAction)) {
+                ArrayList<Bundle> itemBundles = args.getParcelableArrayList(EXTRA_MEDIA_ITEMS);
+                if (itemBundles == null || itemBundles.isEmpty()) {
+                    return Futures.immediateFuture(
+                            new SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE));
+                }
+                List<MediaItem> items = new ArrayList<>(itemBundles.size());
+                try {
+                    for (Bundle itemBundle : itemBundles) {
+                        if (itemBundle == null) {
+                            throw new IllegalArgumentException("Null media item");
+                        }
+                        items.add(MediaItem.fromBundle(itemBundle));
+                    }
+                } catch (RuntimeException invalidItem) {
+                    return Futures.immediateFuture(
+                            new SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE));
+                }
+                insertAfterCurrent(items);
+                return Futures.immediateFuture(
+                        new SessionResult(SessionResult.RESULT_SUCCESS));
+            }
+
+            if (!ACTION_SET_SHUFFLE_ORDER.equals(customCommand.customAction)) {
                 return Futures.immediateFuture(
                         new SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED));
             }
@@ -125,6 +165,45 @@ public class PlaybackService extends MediaSessionService {
                     new SessionResult(SessionResult.RESULT_SUCCESS));
         }
     };
+
+    private void insertAfterCurrent(List<MediaItem> items) {
+        if (player == null || items.isEmpty()) {
+            return;
+        }
+        int oldItemCount = player.getMediaItemCount();
+        int currentIndex = player.getCurrentMediaItemIndex();
+        int insertionIndex = oldItemCount == 0
+                ? 0 : Math.min(currentIndex + 1, oldItemCount);
+        player.addMediaItems(insertionIndex, items);
+
+        if (player.getShuffleModeEnabled() && oldItemCount > 0) {
+            int[] playbackOrder = readPlaybackOrder(player);
+            if (isValidShuffleOrder(playbackOrder, player.getMediaItemCount())) {
+                int[] adjustedOrder = PlaybackQueueOrder.moveInsertedRangeAfterCurrent(
+                        playbackOrder, currentIndex, insertionIndex, items.size());
+                player.setShuffleOrder(new ShuffleOrder.DefaultShuffleOrder(
+                        adjustedOrder, System.nanoTime()));
+            }
+        }
+        scheduleQueueSave();
+    }
+
+    private static int[] readPlaybackOrder(ExoPlayer player) {
+        int itemCount = player.getMediaItemCount();
+        Timeline timeline = player.getCurrentTimeline();
+        if (timeline.getWindowCount() != itemCount) {
+            return new int[0];
+        }
+        int[] order = new int[itemCount];
+        int size = 0;
+        int index = timeline.getFirstWindowIndex(/* shuffleModeEnabled= */ true);
+        while (index != androidx.media3.common.C.INDEX_UNSET && size < itemCount) {
+            order[size++] = index;
+            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF,
+                    /* shuffleModeEnabled= */ true);
+        }
+        return size == itemCount ? order : new int[0];
+    }
 
     /** Makes the explicit UI reset durable even if shuffle was already off. */
     public static void rememberShuffleDisabled(Context context) {
