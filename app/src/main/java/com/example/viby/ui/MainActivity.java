@@ -19,7 +19,9 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaController;
+import androidx.media3.session.SessionCommand;
 import androidx.media3.session.SessionToken;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
@@ -591,6 +593,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** Вставить треки сразу после проигрываемого. */
+    @UnstableApi
     void insertAfterCurrent(List<Track> tracks) {
         MediaController controller = viewModel.controller.getValue();
         if (controller == null || tracks.isEmpty()) {
@@ -600,9 +603,20 @@ public class MainActivity extends AppCompatActivity {
         for (Track track : tracks) {
             items.add(toMediaItem(track));
         }
-        int index = controller.getMediaItemCount() == 0
-                ? 0 : controller.getCurrentMediaItemIndex() + 1;
-        controller.addMediaItems(index, items);
+        if (controller.getShuffleModeEnabled()) {
+            ArrayList<Bundle> itemBundles = new ArrayList<>(items.size());
+            for (MediaItem item : items) {
+                itemBundles.add(item.toBundleIncludeLocalConfiguration());
+            }
+            Bundle args = new Bundle();
+            args.putParcelableArrayList(PlaybackService.EXTRA_MEDIA_ITEMS, itemBundles);
+            controller.sendCustomCommand(new SessionCommand(
+                    PlaybackService.ACTION_INSERT_AFTER_CURRENT, Bundle.EMPTY), args);
+        } else {
+            int index = controller.getMediaItemCount() == 0
+                    ? 0 : controller.getCurrentMediaItemIndex() + 1;
+            controller.addMediaItems(index, items);
+        }
         markQueueCustomized();
         Toast.makeText(this, R.string.added_to_queue, Toast.LENGTH_SHORT).show();
     }
