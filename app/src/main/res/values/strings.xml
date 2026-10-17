@@ -57,6 +57,7 @@
     <string name="ctx_play">Play</string>
     <string name="ctx_add_queue">Add to queue</string>
     <string name="ctx_insert_after_current">Play after current</string>
+    <string name="ctx_track_radio">Start radio</string>
     <string name="ctx_move_to_playlist">Send to playlist…</string>
     <string name="ctx_remove_from_playlist">Remove from playlist</string>
     <string name="ctx_delete_from_device">Delete from device</string>
@@ -218,6 +219,19 @@
     <string name="youtube_sync_delete_both">Viby and YouTube</string>
     <string name="youtube_sync_deleting">Deleting from YouTube…</string>
     <string name="youtube_sync_delete_partial">Removed: %1$d · failed on YouTube: %2$d (%3$s)</string>
+    <string name="track_radio_playlist_name">Radio: %1$s</string>
+    <string name="track_radio_preparing">Creating radio for “%1$s”…</string>
+    <string name="track_radio_started">Radio added to the download queue</string>
+    <string name="track_radio_unavailable">This track has no YouTube ID, so radio is unavailable</string>
+    <string name="track_radio_save_title">Save radio to YouTube?</string>
+    <string name="track_radio_save_message">A private playlist containing the current radio tracks will be created in your YouTube library. Future confirmed additions and deletions can be synchronized.</string>
+    <string name="track_radio_save">Save privately</string>
+    <string name="track_radio_save_action">Save radio to YouTube</string>
+    <string name="track_radio_saving">Creating a private YouTube playlist…</string>
+    <string name="track_radio_saved">Saved “%1$s” to YouTube · tracks: %2$d</string>
+    <string name="track_radio_saved_partial">Saved “%1$s” to YouTube · added: %2$d · failed: %3$d (%4$s)</string>
+    <string name="track_radio_description">Created from Viby track radio.</string>
+    <string name="track_radio_empty">Wait until the radio track list has loaded</string>
 
     <!-- Misc -->
     <string name="menu_playlists_header">Playlists</string>

@@ -28,8 +28,10 @@ import com.example.viby.R;
 import com.example.viby.data.PlaylistInfo;
 import com.example.viby.data.Track;
 import com.example.viby.download.DownloadService;
+import com.example.viby.util.YoutubeUrlParser;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,6 +41,15 @@ import java.util.List;
  * множественного выбора с групповыми действиями.
  */
 public class QueueFragment extends Fragment implements TracksAdapter.Listener {
+
+    private static final int ACTION_PLAY = 0;
+    private static final int ACTION_ADD_TO_QUEUE = 1;
+    private static final int ACTION_INSERT_AFTER_CURRENT = 2;
+    private static final int ACTION_TRACK_RADIO = 3;
+    private static final int ACTION_MOVE_TO_PLAYLIST = 4;
+    private static final int ACTION_SELECT = 5;
+    private static final int ACTION_REMOVE_FROM_PLAYLIST = 6;
+    private static final int ACTION_DELETE_FROM_DEVICE = 7;
 
     private PlayerViewModel viewModel;
     private MediaController controller;
@@ -222,40 +233,50 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                     Toast.LENGTH_SHORT).show();
             return;
         }
-        String[] items = {
-                getString(R.string.ctx_play),
-                getString(R.string.ctx_add_queue),
-                getString(R.string.ctx_insert_after_current),
-                getString(R.string.ctx_move_to_playlist),
-                getString(R.string.ctx_select),
-                getString(R.string.ctx_remove_from_playlist),
-                getString(R.string.ctx_delete_from_device),
-        };
+        List<String> items = new ArrayList<>();
+        List<Integer> actions = new ArrayList<>();
+        addContextAction(items, actions, R.string.ctx_play, ACTION_PLAY);
+        addContextAction(items, actions, R.string.ctx_add_queue, ACTION_ADD_TO_QUEUE);
+        addContextAction(items, actions, R.string.ctx_insert_after_current,
+                ACTION_INSERT_AFTER_CURRENT);
+        if (hasYoutubeSource(track)) {
+            addContextAction(items, actions, R.string.ctx_track_radio, ACTION_TRACK_RADIO);
+        }
+        addContextAction(items, actions, R.string.ctx_move_to_playlist,
+                ACTION_MOVE_TO_PLAYLIST);
+        addContextAction(items, actions, R.string.ctx_select, ACTION_SELECT);
+        addContextAction(items, actions, R.string.ctx_remove_from_playlist,
+                ACTION_REMOVE_FROM_PLAYLIST);
+        addContextAction(items, actions, R.string.ctx_delete_from_device,
+                ACTION_DELETE_FROM_DEVICE);
         MainActivity activity = (MainActivity) requireActivity();
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(track.title)
-                .setItems(items, (dialog, which) -> {
-                    switch (which) {
-                        case 0:
+                .setItems(items.toArray(new String[0]), (dialog, which) -> {
+                    switch (actions.get(which)) {
+                        case ACTION_PLAY:
                             playFromList(track);
                             break;
-                        case 1:
+                        case ACTION_ADD_TO_QUEUE:
                             activity.addToQueue(Collections.singletonList(track));
                             break;
-                        case 2:
+                        case ACTION_INSERT_AFTER_CURRENT:
                             activity.insertAfterCurrent(Collections.singletonList(track));
                             break;
-                        case 3:
+                        case ACTION_TRACK_RADIO:
+                            activity.startTrackRadio(track);
+                            break;
+                        case ACTION_MOVE_TO_PLAYLIST:
                             showMoveDialog(Collections.singletonList(track));
                             break;
-                        case 4:
+                        case ACTION_SELECT:
                             enterSelection(track);
                             break;
-                        case 5:
+                        case ACTION_REMOVE_FROM_PLAYLIST:
                             activity.removeTracksFromPlaylist(
                                     Collections.singletonList(track));
                             break;
-                        case 6:
+                        case ACTION_DELETE_FROM_DEVICE:
                             activity.confirmDeleteTrack(track);
                             break;
                         default:
@@ -263,6 +284,17 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                     }
                 })
                 .show();
+    }
+
+    private void addContextAction(List<String> items, List<Integer> actions,
+                                  int labelRes, int action) {
+        items.add(getString(labelRes));
+        actions.add(action);
+    }
+
+    private static boolean hasYoutubeSource(Track track) {
+        return (track.videoId != null && !track.videoId.isEmpty())
+                || YoutubeUrlParser.videoId(track.sourceUrl) != null;
     }
 
     @Override

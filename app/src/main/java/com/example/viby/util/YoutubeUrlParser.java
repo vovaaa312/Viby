@@ -9,6 +9,8 @@ import java.util.Locale;
 /** Extracts a video ID from common YouTube share and watch URL variants. */
 public final class YoutubeUrlParser {
 
+    private static final String RADIO_PREFIX = "RD";
+
     private YoutubeUrlParser() {
     }
 
@@ -69,6 +71,26 @@ public final class YoutubeUrlParser {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    /** Builds the standard YouTube Mix URL used as a track-seeded radio. */
+    public static String radioMixUrl(String videoId) {
+        String cleanVideoId = clean(videoId);
+        if (cleanVideoId == null) {
+            throw new IllegalArgumentException("A YouTube video id is required");
+        }
+        return "https://www.youtube.com/watch?v=" + cleanVideoId
+                + "&list=" + RADIO_PREFIX + cleanVideoId;
+    }
+
+    /** True for an auto-generated YouTube Mix/Radio URL. */
+    public static boolean isRadioMixUrl(@Nullable String url) {
+        return isRadioPlaylistId(playlistId(url));
+    }
+
+    /** YouTube-generated Mix identifiers start with RD and are not owned playlists. */
+    public static boolean isRadioPlaylistId(@Nullable String playlistId) {
+        return playlistId != null && playlistId.startsWith(RADIO_PREFIX);
     }
 
     @Nullable

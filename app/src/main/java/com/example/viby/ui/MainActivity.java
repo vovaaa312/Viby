@@ -33,6 +33,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.viby.R;
 import com.example.viby.VibyApp;
+import com.example.viby.data.PlaylistSource;
 import com.example.viby.data.Track;
 import com.example.viby.data.VibyDatabase;
 import com.example.viby.download.DownloadService;
@@ -112,6 +113,10 @@ public class MainActivity extends AppCompatActivity {
         toolbar.setNavigationOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
         toolbar.inflateMenu(R.menu.menu_main);
         toolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.action_save_radio) {
+                showPlaylistSyncDialog();
+                return true;
+            }
             if (item.getItemId() == R.id.action_queue) {
                 new PlaybackQueueDialogFragment().show(
                         getSupportFragmentManager(), "playback_queue");
@@ -144,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
         appUpdateManager.start();
 
         viewModel.getActivePlaylist().observe(this, name -> toolbar.setTitle(name));
+        viewModel.playlistSource.observe(this, this::updateRadioSaveAction);
         viewModel.tracks.observe(this, tracks -> syncQueue());
 
         requestNotificationPermissionIfNeeded();
@@ -257,6 +263,14 @@ public class MainActivity extends AppCompatActivity {
                                     (dialog, which) -> disableYoutubeSync(playlist))
                             .setNegativeButton(android.R.string.cancel, null)
                             .show();
+                } else if (isUnsavedRadio(source)) {
+                    new MaterialAlertDialogBuilder(this)
+                            .setTitle(R.string.track_radio_save_title)
+                            .setMessage(R.string.track_radio_save_message)
+                            .setPositiveButton(R.string.track_radio_save,
+                                    (dialog, which) -> saveRadioToYoutube(playlist))
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show();
                 } else {
                     new MaterialAlertDialogBuilder(this)
                             .setTitle(R.string.youtube_sync_title)
@@ -269,6 +283,54 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         });
+    }
+
+    private static boolean isUnsavedRadio(
+            com.example.viby.data.PlaylistSource source) {
+        return com.example.viby.util.YoutubeUrlParser.isRadioMixUrl(source.sourceUrl)
+                && (source.youtubePlaylistId == null
+                || com.example.viby.util.YoutubeUrlParser.isRadioPlaylistId(
+                        source.youtubePlaylistId));
+    }
+
+    private void updateRadioSaveAction(PlaylistSource source) {
+        android.view.MenuItem item = toolbar.getMenu().findItem(R.id.action_save_radio);
+        if (item != null) {
+            item.setVisible(source != null && isUnsavedRadio(source));
+        }
+    }
+
+    private void saveRadioToYoutube(String playlist) {
+        Toast.makeText(this, R.string.youtube_sync_authorizing,
+                Toast.LENGTH_SHORT).show();
+        requestYoutubeAccess(accessToken -> {
+            Toast.makeText(this, R.string.track_radio_saving,
+                    Toast.LENGTH_LONG).show();
+            youtubeSyncExecutor.execute(() -> {
+                try {
+                    YoutubePlaylistSync.SaveRadioResult result = youtubePlaylistSync
+                            .saveRadioToYoutube(playlist, accessToken);
+                    runOnUiThread(() -> {
+                        if (result.failedCount == 0) {
+                            Toast.makeText(this,
+                                    getString(R.string.track_radio_saved,
+                                            result.remoteTitle, result.addedCount),
+                                    Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(this,
+                                    getString(R.string.track_radio_saved_partial,
+                                            result.remoteTitle, result.addedCount,
+                                            result.failedCount,
+                                            result.firstError != null
+                                                    ? result.firstError : "YouTube API"),
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } catch (Exception error) {
+                    showYoutubeSyncError(error);
+                }
+            });
+        }, this::showYoutubeSyncError);
     }
 
     private void enableYoutubeSync(String playlist) {
@@ -298,6 +360,49 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(this,
                     R.string.youtube_sync_disabled, Toast.LENGTH_SHORT).show());
         });
+    }
+
+    /** Creates a finite local YouTube Mix playlist seeded by the selected track. */
+    void startTrackRadio(Track track) {
+        String videoId = track.videoId != null && !track.videoId.isEmpty()
+                ? track.videoId
+                : com.example.viby.util.YoutubeUrlParser.videoId(track.sourceUrl);
+        if (videoId == null) {
+            Toast.makeText(this, R.string.track_radio_unavailable,
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        String title = track.title != null && !track.title.trim().isEmpty()
+                ? track.title.trim() : videoId;
+        Toast.makeText(this, getString(R.string.track_radio_preparing, title),
+                Toast.LENGTH_SHORT).show();
+        String radioUrl = com.example.viby.util.YoutubeUrlParser.radioMixUrl(videoId);
+        String requestedName = com.example.viby.util.StorageHelper.sanitize(
+                getString(R.string.track_radio_playlist_name, title));
+        VibyDatabase.dbExecutor.execute(() -> {
+            String playlist = availablePlaylistName(requestedName);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                viewModel.setActivePlaylist(playlist);
+                DownloadService.enqueue(this, radioUrl, playlist, true);
+                Toast.makeText(this, R.string.track_radio_started,
+                        Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+
+    private String availablePlaylistName(String requestedName) {
+        String base = requestedName.length() <= 100
+                ? requestedName : requestedName.substring(0, 100).trim();
+        String candidate = base;
+        int suffix = 2;
+        while (!VibyDatabase.get(this).trackDao().getPlaylistSync(candidate).isEmpty()
+                || VibyDatabase.get(this).playlistSourceDao().getSync(candidate) != null) {
+            candidate = base + " (" + suffix++ + ")";
+        }
+        return candidate;
     }
 
     /** Entry point used by the playlist screen for a single YouTube URL. */

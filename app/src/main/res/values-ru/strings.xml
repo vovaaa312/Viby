@@ -57,6 +57,7 @@
     <string name="ctx_play">Воспроизвести</string>
     <string name="ctx_add_queue">Добавить в очередь</string>
     <string name="ctx_insert_after_current">Вставить после проигрываемого</string>
+    <string name="ctx_track_radio">Радио по треку</string>
     <string name="ctx_move_to_playlist">Отправить в плейлист…</string>
     <string name="ctx_remove_from_playlist">Удалить из плейлиста</string>
     <string name="ctx_delete_from_device">Удалить с устройства</string>
@@ -217,6 +218,19 @@
     <string name="youtube_sync_delete_both">Из Viby и YouTube</string>
     <string name="youtube_sync_deleting">Удаляю из YouTube…</string>
     <string name="youtube_sync_delete_partial">Удалено: %1$d · ошибок YouTube: %2$d (%3$s)</string>
+    <string name="track_radio_playlist_name">Радио: %1$s</string>
+    <string name="track_radio_preparing">Создаю радио по треку «%1$s»…</string>
+    <string name="track_radio_started">Радио добавлено в очередь загрузки</string>
+    <string name="track_radio_unavailable">У трека нет YouTube ID, поэтому радио недоступно</string>
+    <string name="track_radio_save_title">Сохранить радио на YouTube?</string>
+    <string name="track_radio_save_message">В медиатеке YouTube будет создан приватный плейлист с текущими треками радио. Дальнейшие подтверждённые добавления и удаления можно будет синхронизировать.</string>
+    <string name="track_radio_save">Сохранить приватно</string>
+    <string name="track_radio_save_action">Сохранить радио на YouTube</string>
+    <string name="track_radio_saving">Создаю приватный плейлист на YouTube…</string>
+    <string name="track_radio_saved">«%1$s» сохранён на YouTube · треков: %2$d</string>
+    <string name="track_radio_saved_partial">«%1$s» сохранён на YouTube · добавлено: %2$d · ошибок: %3$d (%4$s)</string>
+    <string name="track_radio_description">Создано из радио по треку в Viby.</string>
+    <string name="track_radio_empty">Дождитесь загрузки списка треков радио</string>
 
     <!-- Misc -->
     <string name="menu_playlists_header">Плейлисты</string>

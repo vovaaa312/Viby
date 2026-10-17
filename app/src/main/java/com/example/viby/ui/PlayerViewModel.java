@@ -11,6 +11,7 @@ import androidx.lifecycle.Transformations;
 
 import com.example.viby.R;
 import com.example.viby.data.PlaylistInfo;
+import com.example.viby.data.PlaylistSource;
 import com.example.viby.data.Track;
 import com.example.viby.data.VibyDatabase;
 
@@ -33,6 +34,7 @@ public class PlayerViewModel extends AndroidViewModel {
 
     public final LiveData<List<PlaylistInfo>> playlists;
     public final LiveData<List<Track>> tracks;
+    public final LiveData<PlaylistSource> playlistSource;
 
     public PlayerViewModel(@NonNull Application application) {
         super(application);
@@ -45,6 +47,8 @@ public class PlayerViewModel extends AndroidViewModel {
         playlists = db.trackDao().observePlaylists();
         tracks = Transformations.switchMap(activePlaylist,
                 playlist -> db.trackDao().observePlaylist(playlist));
+        playlistSource = Transformations.switchMap(activePlaylist,
+                playlist -> db.playlistSourceDao().observe(playlist));
     }
 
     public LiveData<String> getActivePlaylist() {

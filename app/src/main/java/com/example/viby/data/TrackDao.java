@@ -48,6 +48,9 @@ public interface TrackDao {
             + "AND downloaded = 1 LIMIT 1")
     Track getDownloadedByVideoIdSync(String playlist, String videoId);
 
+    @Query("SELECT * FROM tracks WHERE videoId = :videoId AND downloaded = 1 ORDER BY id")
+    List<Track> getDownloadedByVideoIdGloballySync(String videoId);
+
     @Query("SELECT COUNT(*) FROM tracks WHERE filePath = :filePath")
     int countFileReferences(String filePath);
 

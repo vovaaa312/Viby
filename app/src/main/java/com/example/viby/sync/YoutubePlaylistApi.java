@@ -118,8 +118,17 @@ public final class YoutubePlaylistApi {
     public PlaylistItem insertAtStart(String accessToken, String playlistId,
                                       String videoId)
             throws IOException, JSONException {
+        return insertAtPosition(accessToken, playlistId, videoId, 0);
+    }
+
+    public PlaylistItem insertAtPosition(String accessToken, String playlistId,
+                                         String videoId, int position)
+            throws IOException, JSONException {
+        if (position < 0) {
+            throw new IllegalArgumentException("Playlist position cannot be negative");
+        }
         try {
-            return insert(accessToken, playlistId, videoId, 0);
+            return insert(accessToken, playlistId, videoId, position);
         } catch (ApiException error) {
             if (error.statusCode != 400
                     || !"manualSortRequired".equals(error.reason)) {
@@ -129,6 +138,30 @@ public final class YoutubePlaylistApi {
             // Let YouTube apply their configured order and use the returned position.
             return insert(accessToken, playlistId, videoId, null);
         }
+    }
+
+    public OwnedPlaylist createPrivatePlaylist(String accessToken, String title,
+                                                String description)
+            throws IOException, JSONException {
+        JSONObject snippet = new JSONObject()
+                .put("title", title)
+                .put("description", description);
+        JSONObject status = new JSONObject().put("privacyStatus", "private");
+        JSONObject body = new JSONObject()
+                .put("snippet", snippet)
+                .put("status", status);
+        JSONObject response = request("POST",
+                API + "playlists?part=snippet%2Cstatus", accessToken, body.toString());
+        String playlistId = response.optString("id", "");
+        if (playlistId.isEmpty()) {
+            throw new IOException("YouTube returned an empty playlist id");
+        }
+        JSONObject returnedSnippet = response.optJSONObject("snippet");
+        return new OwnedPlaylist(playlistId,
+                returnedSnippet != null
+                        ? returnedSnippet.optString("title", title) : title,
+                returnedSnippet != null
+                        ? returnedSnippet.optString("channelId", "") : "");
     }
 
     private PlaylistItem insert(String accessToken, String playlistId,

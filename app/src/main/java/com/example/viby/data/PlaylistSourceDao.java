@@ -1,5 +1,6 @@
 package com.example.viby.data;
 
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
@@ -13,6 +14,9 @@ public interface PlaylistSourceDao {
 
     @Query("SELECT * FROM playlist_sources WHERE playlistName = :playlistName")
     PlaylistSource getSync(String playlistName);
+
+    @Query("SELECT * FROM playlist_sources WHERE playlistName = :playlistName")
+    LiveData<PlaylistSource> observe(String playlistName);
 
     @Query("DELETE FROM playlist_sources WHERE playlistName = :playlistName")
     void delete(String playlistName);

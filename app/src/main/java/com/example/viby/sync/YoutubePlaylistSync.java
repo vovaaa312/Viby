@@ -61,6 +61,21 @@ public final class YoutubePlaylistSync {
         }
     }
 
+    public static final class SaveRadioResult {
+        public final String remoteTitle;
+        public final int addedCount;
+        public final int failedCount;
+        @Nullable public final String firstError;
+
+        SaveRadioResult(String remoteTitle, int addedCount, int failedCount,
+                        @Nullable String firstError) {
+            this.remoteTitle = remoteTitle;
+            this.addedCount = addedCount;
+            this.failedCount = failedCount;
+            this.firstError = firstError;
+        }
+    }
+
     public YoutubePlaylistSync(Context context) {
         this(context, new YoutubePlaylistApi());
     }
@@ -105,6 +120,62 @@ public final class YoutubePlaylistSync {
         }
         source.youtubeSyncEnabled = false;
         database.playlistSourceDao().upsert(source);
+    }
+
+    /** Saves the current finite radio snapshot as a private owned YouTube playlist. */
+    public SaveRadioResult saveRadioToYoutube(String localPlaylist, String accessToken)
+            throws Exception {
+        PlaylistSource source = requireSource(localPlaylist);
+        if (!YoutubeUrlParser.isRadioMixUrl(source.sourceUrl)) {
+            throw new IllegalStateException(
+                    context.getString(R.string.youtube_sync_invalid_source));
+        }
+        TrackDao dao = database.trackDao();
+        List<Track> tracks = dao.getPlaylistSync(localPlaylist);
+        if (tracks.isEmpty()) {
+            throw new IllegalStateException(context.getString(R.string.track_radio_empty));
+        }
+
+        String title = truncate(localPlaylist, 150);
+        YoutubePlaylistApi.OwnedPlaylist created = api.createPrivatePlaylist(
+                accessToken, title, context.getString(R.string.track_radio_description));
+
+        int added = 0;
+        int failed = 0;
+        String firstError = null;
+        for (Track track : tracks) {
+            track.youtubePlaylistItemId = null;
+            track.youtubePosition = null;
+            if (track.videoId == null || track.videoId.isEmpty()) {
+                failed++;
+                if (firstError == null) {
+                    firstError = context.getString(R.string.track_radio_unavailable);
+                }
+                continue;
+            }
+            try {
+                YoutubePlaylistApi.PlaylistItem item = api.insertAtPosition(
+                        accessToken, created.id, track.videoId, added);
+                track.youtubePlaylistItemId = item.id;
+                track.youtubePosition = item.position;
+                added++;
+            } catch (Exception error) {
+                failed++;
+                if (firstError == null) {
+                    firstError = error.getMessage();
+                }
+            }
+        }
+
+        source.youtubePlaylistId = created.id;
+        source.youtubeOwnerChannelId = created.channelId;
+        source.youtubeSyncEnabled = true;
+        source.updatedAt = System.currentTimeMillis();
+        database.runInTransaction(() -> {
+            dao.updateAll(tracks);
+            database.playlistSourceDao().upsert(source);
+        });
+        return new SaveRadioResult(created.title, added, failed, firstError);
     }
 
     public AddResult addTrackAtStart(String localPlaylist, String url,
@@ -339,5 +410,12 @@ public final class YoutubePlaylistSync {
 
     private static boolean equals(@Nullable String first, @Nullable String second) {
         return first == null ? second == null : first.equals(second);
+    }
+
+    private static String truncate(String value, int maxCodePoints) {
+        if (value.codePointCount(0, value.length()) <= maxCodePoints) {
+            return value;
+        }
+        return value.substring(0, value.offsetByCodePoints(0, maxCodePoints));
     }
 }

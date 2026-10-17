@@ -73,6 +73,7 @@ public class DownloadService extends Service {
 
     private static final int NOTIF_PROGRESS_ID = 1;
     private static final int ENGINE_WAIT_SECONDS = 60;
+    private static final int TRACK_RADIO_LIMIT = 50;
 
     /** Клиенты для повторной попытки: tv/mweb обходят ложное «Video unavailable». */
     private static final String ALT_PLAYER_CLIENTS = "default,tv,mweb";
@@ -460,7 +461,8 @@ public class DownloadService extends Service {
         job.playlistName = playlist;
         publish(true);
 
-        if (videoId != null && dao.isDownloaded(playlist, videoId)) {
+        if (reuseDownloadedTrack(videoId, title, info.getUploader(),
+                info.getDuration() * 1000L, playlist, null, job.url)) {
             job.status = DownloadJob.Status.DONE;
             return;
         }
@@ -481,6 +483,9 @@ public class DownloadService extends Service {
         infoRequest.addOption("--flat-playlist");
         infoRequest.addOption("--dump-single-json");
         infoRequest.addOption("--no-warnings");
+        if (com.example.viby.util.YoutubeUrlParser.isRadioMixUrl(job.url)) {
+            infoRequest.addOption("--playlist-end", String.valueOf(TRACK_RADIO_LIMIT));
+        }
         applyCookies(infoRequest);
         String processId = "job-" + job.id + "-info";
         activeProcessId = processId;
@@ -554,7 +559,10 @@ public class DownloadService extends Service {
             publish(true);
             updateProgressNotification(job);
             try {
-                if (item.videoId.isEmpty() || dao.isDownloaded(playlist, item.videoId)) {
+                if (item.videoId.isEmpty() || reuseDownloadedTrack(item.videoId,
+                        item.title, item.uploader, item.durationMs, playlist,
+                        item.youtubePosition, "https://www.youtube.com/watch?v="
+                                + item.videoId)) {
                     item.progress = 100;
                     item.status = DownloadJob.TrackItem.Status.DONE;
                     continue;
@@ -654,21 +662,24 @@ public class DownloadService extends Service {
     private void ensurePlaceholderTracks(DownloadJob job, String playlist) {
         synchronized (job.tracks) {
             for (DownloadJob.TrackItem item : job.tracks) {
+                String sourceUrl = "https://www.youtube.com/watch?v=" + item.videoId;
+                if (reuseDownloadedTrack(item.videoId, item.title, item.uploader,
+                        item.durationMs, playlist, item.youtubePosition, sourceUrl)) {
+                    item.status = DownloadJob.TrackItem.Status.DONE;
+                    continue;
+                }
                 Track existing = dao.getByVideoIdSync(playlist, item.videoId);
                 if (existing != null) {
-                    if (existing.downloaded) {
-                        item.status = DownloadJob.TrackItem.Status.DONE;
-                    } else {
-                        existing.title = item.title;
-                        existing.uploader = item.uploader;
-                        existing.durationMs = item.durationMs;
-                        existing.youtubePosition = item.youtubePosition;
-                        existing.thumbnailUrl = "https://i.ytimg.com/vi/"
-                                + item.videoId + "/hqdefault.jpg";
-                        existing.sourceUrl = "https://www.youtube.com/watch?v="
-                                + item.videoId;
-                        dao.update(existing);
-                    }
+                    existing.title = item.title;
+                    existing.uploader = item.uploader;
+                    existing.durationMs = item.durationMs;
+                    existing.youtubePosition = item.youtubePosition;
+                    existing.thumbnailUrl = "https://i.ytimg.com/vi/"
+                            + item.videoId + "/hqdefault.jpg";
+                    existing.sourceUrl = sourceUrl;
+                    existing.downloaded = false;
+                    existing.filePath = "";
+                    dao.update(existing);
                     continue;
                 }
                 Track placeholder = new Track();
@@ -683,10 +694,62 @@ public class DownloadService extends Service {
                 placeholder.youtubePosition = item.youtubePosition;
                 placeholder.createdAt = System.currentTimeMillis();
                 placeholder.downloaded = false;
-                placeholder.sourceUrl = "https://www.youtube.com/watch?v=" + item.videoId;
+                placeholder.sourceUrl = sourceUrl;
                 dao.insert(placeholder);
             }
         }
+    }
+
+    /**
+     * Links a track in the target playlist to an already downloaded file with the same
+     * YouTube video id. Playlist membership stays independent while the media bytes are shared.
+     */
+    private boolean reuseDownloadedTrack(@Nullable String videoId, String title,
+                                         @Nullable String uploader, long durationMs,
+                                         String playlist,
+                                         @Nullable Integer youtubePosition,
+                                         String sourceUrl) {
+        if (videoId == null || videoId.isEmpty()) {
+            return false;
+        }
+        Track reusable = null;
+        for (Track candidate : dao.getDownloadedByVideoIdGloballySync(videoId)) {
+            if (candidate.filePath != null && !candidate.filePath.isEmpty()
+                    && new File(candidate.filePath).isFile()) {
+                reusable = candidate;
+                break;
+            }
+        }
+        if (reusable == null) {
+            return false;
+        }
+
+        Track target = dao.getByVideoIdSync(playlist, videoId);
+        boolean updateExisting = target != null;
+        if (target == null) {
+            target = new Track();
+            target.position = dao.nextPosition(playlist);
+            target.createdAt = System.currentTimeMillis();
+        }
+        target.videoId = videoId;
+        target.title = title != null && !title.isEmpty() ? title : reusable.title;
+        target.uploader = uploader != null && !uploader.isEmpty()
+                ? uploader : reusable.uploader;
+        target.durationMs = durationMs > 0 ? durationMs : reusable.durationMs;
+        target.filePath = reusable.filePath;
+        target.playlistName = playlist;
+        target.thumbnailUrl = reusable.thumbnailUrl != null
+                ? reusable.thumbnailUrl
+                : "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg";
+        target.youtubePosition = youtubePosition;
+        target.downloaded = true;
+        target.sourceUrl = sourceUrl;
+        if (updateExisting) {
+            dao.update(target);
+        } else {
+            dao.insert(target);
+        }
+        return true;
     }
 
     private void applyYoutubeOrder(String playlist,
