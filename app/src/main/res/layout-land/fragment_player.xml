@@ -105,7 +105,7 @@
         android:background="@color/viby_control_panel"
         android:gravity="center"
         android:orientation="horizontal"
-        app:layout_constraintBottom_toBottomOf="parent">
+        app:layout_constraintBottom_toTopOf="@id/lyricsPullHandle">
 
         <ImageButton
             android:id="@+id/shuffleButton"
@@ -184,5 +184,23 @@
             android:src="@drawable/ic_repeat"
             app:tint="@color/viby_on_control_panel" />
     </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/lyricsPullHandle"
+        android:layout_width="match_parent"
+        android:layout_height="20dp"
+        android:background="@color/viby_control_panel"
+        android:clickable="true"
+        android:contentDescription="@string/lyrics_handle_description"
+        android:focusable="true"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center"
+            android:alpha="0.55"
+            android:background="@drawable/bg_lyrics_handle" />
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

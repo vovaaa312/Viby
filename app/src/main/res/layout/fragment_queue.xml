@@ -86,6 +86,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
+            android:paddingEnd="32dp"
             android:paddingVertical="8dp"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
@@ -100,6 +101,16 @@
             android:textAppearance="?attr/textAppearanceBodyLarge"
             android:textColor="@color/viby_text_secondary"
             android:visibility="gone" />
+
+        <com.example.viby.ui.widget.PlaylistFastScroller
+            android:id="@+id/playlistFastScroller"
+            android:layout_width="32dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="6dp"
+            android:layout_marginBottom="156dp"
+            android:contentDescription="@string/playlist_fast_scroll" />
 
         <LinearLayout
             android:layout_width="wrap_content"

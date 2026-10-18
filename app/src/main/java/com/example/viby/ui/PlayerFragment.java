@@ -4,8 +4,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewConfiguration;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -121,6 +123,7 @@ public class PlayerFragment extends Fragment {
         trackCounter = view.findViewById(R.id.trackCounter);
         ImageButton prevButton = view.findViewById(R.id.prevButton);
         ImageButton nextButton = view.findViewById(R.id.nextButton);
+        View lyricsPullHandle = view.findViewById(R.id.lyricsPullHandle);
 
         trackTitle.setSelected(true); // бегущая строка для длинных названий
 
@@ -163,6 +166,28 @@ public class PlayerFragment extends Fragment {
                 default:
                     controller.setRepeatMode(Player.REPEAT_MODE_OFF);
                     break;
+            }
+        });
+
+        lyricsPullHandle.setOnClickListener(v -> showLyrics());
+        int touchSlop = ViewConfiguration.get(requireContext()).getScaledTouchSlop();
+        final float[] touchDownY = new float[1];
+        lyricsPullHandle.setOnTouchListener((handle, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    touchDownY[0] = event.getRawY();
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    float upwardDistance = touchDownY[0] - event.getRawY();
+                    if (upwardDistance > touchSlop
+                            || Math.abs(upwardDistance) <= touchSlop) {
+                        handle.performClick();
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    return true;
+                default:
+                    return true;
             }
         });
 
@@ -228,6 +253,15 @@ public class PlayerFragment extends Fragment {
         updateProgress();
         updateCounter();
         loadWaveform();
+    }
+
+    private void showLyrics() {
+        if (controller == null || controller.getCurrentMediaItem() == null
+                || getParentFragmentManager().isStateSaved()) {
+            return;
+        }
+        LyricsBottomSheetDialogFragment.newInstance(controller.getCurrentMediaItem())
+                .show(getParentFragmentManager(), "track_lyrics");
     }
 
     private void loadWaveform() {

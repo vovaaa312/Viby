@@ -231,6 +231,17 @@
     <string name="track_radio_saved_partial">«%1$s» сохранён на YouTube · добавлено: %2$d · ошибок: %3$d (%4$s)</string>
     <string name="track_radio_description">Создано из радио по треку в Viby.</string>
     <string name="track_radio_empty">Дождитесь загрузки списка треков радио</string>
+    <string name="lyrics_title">Текст трека</string>
+    <string name="lyrics_handle_description">Потяните вверх, чтобы открыть текст трека</string>
+    <string name="lyrics_loading">Ищу текст на YouTube…</string>
+    <string name="lyrics_source_manual">Субтитры YouTube · %1$s</string>
+    <string name="lyrics_source_automatic">Автоматические субтитры YouTube · %1$s</string>
+    <string name="lyrics_source_music">Текст YouTube Music</string>
+    <string name="lyrics_source_music_attributed">YouTube Music · %1$s</string>
+    <string name="lyrics_not_found">На YouTube нет доступного текста или субтитров для этого трека</string>
+    <string name="lyrics_local_track">Текст YouTube недоступен для трека, добавленного с устройства</string>
+    <string name="lyrics_load_failed">Не удалось загрузить текст с YouTube. Проверьте подключение и попробуйте ещё раз</string>
+    <string name="playlist_fast_scroll">Быстрая прокрутка плейлиста</string>
 
     <!-- Misc -->
     <string name="menu_playlists_header">Плейлисты</string>

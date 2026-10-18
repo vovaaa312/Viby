@@ -34,6 +34,9 @@ public interface TrackDao {
     @Query("SELECT * FROM tracks WHERE playlistName = :playlist ORDER BY position, id")
     List<Track> getPlaylistSync(String playlist);
 
+    @Query("SELECT * FROM tracks WHERE id = :id LIMIT 1")
+    Track getByIdSync(long id);
+
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM tracks WHERE playlistName = :playlist")
     int nextPosition(String playlist);
 

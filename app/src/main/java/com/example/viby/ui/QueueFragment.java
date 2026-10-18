@@ -28,6 +28,7 @@ import com.example.viby.R;
 import com.example.viby.data.PlaylistInfo;
 import com.example.viby.data.Track;
 import com.example.viby.download.DownloadService;
+import com.example.viby.ui.widget.PlaylistFastScroller;
 import com.example.viby.util.YoutubeUrlParser;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -54,6 +55,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
     private PlayerViewModel viewModel;
     private MediaController controller;
     private TracksAdapter adapter;
+    private PlaylistFastScroller fastScroller;
     private TextView emptyText;
 
     private View selectionBar;
@@ -108,6 +110,8 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         RecyclerView tracksList = view.findViewById(R.id.tracksList);
         adapter = new TracksAdapter(this);
         tracksList.setAdapter(adapter);
+        fastScroller = view.findViewById(R.id.playlistFastScroller);
+        fastScroller.attachTo(tracksList);
 
         selectionBar = view.findViewById(R.id.selectionBar);
         selectAllCheck = view.findViewById(R.id.selectAllCheck);
@@ -217,6 +221,10 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
 
     @Override
     public void onDestroyView() {
+        if (fastScroller != null) {
+            fastScroller.detachFromRecyclerView();
+            fastScroller = null;
+        }
         if (controller != null) {
             controller.removeListener(playerListener);
             controller = null;

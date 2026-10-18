@@ -63,6 +63,8 @@ import java.util.function.Consumer;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
+    static final String METADATA_VIDEO_ID = "com.example.viby.metadata.VIDEO_ID";
+    static final String METADATA_SOURCE_URL = "com.example.viby.metadata.SOURCE_URL";
     private static final String YOUTUBE_WRITE_SCOPE =
             "https://www.googleapis.com/auth/youtube.force-ssl";
 
@@ -688,32 +690,36 @@ public class MainActivity extends AppCompatActivity {
     }
 
     static MediaItem toMediaItem(Track track) {
-        MediaMetadata metadata = new MediaMetadata.Builder()
-                .setTitle(track.title)
-                .setArtist(track.uploader)
-                .setArtworkUri(track.thumbnailUrl != null
-                        ? Uri.parse(track.thumbnailUrl) : null)
-                .setDurationMs(track.durationMs)
-                .build();
         return new MediaItem.Builder()
                 .setUri(Uri.fromFile(new File(track.filePath)))
                 .setMediaId(String.valueOf(track.id))
-                .setMediaMetadata(metadata)
+                .setMediaMetadata(toMediaMetadata(track))
                 .build();
     }
 
     private static MediaItem toStreamMediaItem(Track track, String streamUrl) {
-        MediaMetadata metadata = new MediaMetadata.Builder()
+        return new MediaItem.Builder()
+                .setUri(Uri.parse(streamUrl))
+                .setMediaId(String.valueOf(track.id))
+                .setMediaMetadata(toMediaMetadata(track))
+                .build();
+    }
+
+    private static MediaMetadata toMediaMetadata(Track track) {
+        Bundle extras = new Bundle();
+        if (track.videoId != null && !track.videoId.isEmpty()) {
+            extras.putString(METADATA_VIDEO_ID, track.videoId);
+        }
+        if (track.sourceUrl != null && !track.sourceUrl.isEmpty()) {
+            extras.putString(METADATA_SOURCE_URL, track.sourceUrl);
+        }
+        return new MediaMetadata.Builder()
                 .setTitle(track.title)
                 .setArtist(track.uploader)
                 .setArtworkUri(track.thumbnailUrl != null
                         ? Uri.parse(track.thumbnailUrl) : null)
                 .setDurationMs(track.durationMs)
-                .build();
-        return new MediaItem.Builder()
-                .setUri(Uri.parse(streamUrl))
-                .setMediaId(String.valueOf(track.id))
-                .setMediaMetadata(metadata)
+                .setExtras(extras)
                 .build();
     }
 

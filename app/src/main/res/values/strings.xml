@@ -232,6 +232,17 @@
     <string name="track_radio_saved_partial">Saved “%1$s” to YouTube · added: %2$d · failed: %3$d (%4$s)</string>
     <string name="track_radio_description">Created from Viby track radio.</string>
     <string name="track_radio_empty">Wait until the radio track list has loaded</string>
+    <string name="lyrics_title">Lyrics</string>
+    <string name="lyrics_handle_description">Swipe up to open the track lyrics</string>
+    <string name="lyrics_loading">Looking for text on YouTube…</string>
+    <string name="lyrics_source_manual">YouTube subtitles · %1$s</string>
+    <string name="lyrics_source_automatic">Automatic YouTube subtitles · %1$s</string>
+    <string name="lyrics_source_music">YouTube Music lyrics</string>
+    <string name="lyrics_source_music_attributed">YouTube Music · %1$s</string>
+    <string name="lyrics_not_found">YouTube has no available text or subtitles for this track</string>
+    <string name="lyrics_local_track">YouTube text is unavailable for a track added from this device</string>
+    <string name="lyrics_load_failed">Could not load text from YouTube. Check your connection and try again</string>
+    <string name="playlist_fast_scroll">Fast playlist scrolling</string>
 
     <!-- Misc -->
     <string name="menu_playlists_header">Playlists</string>

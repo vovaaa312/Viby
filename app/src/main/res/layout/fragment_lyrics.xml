@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
+    android:orientation="vertical"
+    android:paddingTop="8dp">
+
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="12dp"
+        android:alpha="0.55"
+        android:background="@color/viby_text_secondary" />
+
+    <TextView
+        android:id="@+id/lyricsTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:paddingHorizontal="20dp"
+        android:text="@string/lyrics_title"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/lyricsSource"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="12dp"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textColor="@color/viby_text_secondary" />
+
+    <ProgressBar
+        android:id="@+id/lyricsProgress"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="28dp" />
+
+    <TextView
+        android:id="@+id/lyricsStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="24dp"
+        android:text="@string/lyrics_loading"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:textColor="@color/viby_text_secondary" />
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/lyricsScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/lyricsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:lineSpacingExtra="8dp"
+            android:paddingHorizontal="24dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="32dp"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="@color/viby_text" />
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>

@@ -102,7 +102,7 @@
         android:gravity="center_horizontal"
         android:orientation="vertical"
         android:paddingTop="10dp"
-        android:paddingBottom="14dp"
+        android:paddingBottom="4dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
@@ -175,6 +175,22 @@
             android:textColor="@color/viby_on_control_panel"
             tools:text="1/7"
             xmlns:tools="http://schemas.android.com/tools" />
+
+        <FrameLayout
+            android:id="@+id/lyricsPullHandle"
+            android:layout_width="match_parent"
+            android:layout_height="28dp"
+            android:clickable="true"
+            android:contentDescription="@string/lyrics_handle_description"
+            android:focusable="true">
+
+            <View
+                android:layout_width="36dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center"
+                android:alpha="0.55"
+                android:background="@drawable/bg_lyrics_handle" />
+        </FrameLayout>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
