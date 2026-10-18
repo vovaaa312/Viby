@@ -2,7 +2,7 @@
 
 Viby is an experimental, AIMP-inspired music player for Android that turns YouTube videos and playlists into an on-device music library. Downloading, metadata extraction, queue management, playback, and app updates run on the phone; Viby does not require its own backend.
 
-> **Project status:** personal-use beta. The main workflows are usable, but the project still needs broader automated testing, lint/API cleanup, production signing, and architectural refactoring before it should be treated as a production-ready player.
+> **Project status:** personal-use beta. The main workflows are usable and now have a broad automated regression suite, but the project still needs production signing, dependency updates, performance profiling, and architectural refactoring before it should be treated as a production-ready player.
 
 ## What Viby can do
 
@@ -15,6 +15,14 @@ Viby is an experimental, AIMP-inspired music player for Android that turns YouTu
 - Update the bundled extractor daily or on demand without waiting for a Viby release.
 - Refresh a previously downloaded YouTube playlist and restore the source order with the **Original YouTube order** sorting option.
 - Detect duplicate tracks and ask whether to reuse the existing local file instead of silently downloading it again.
+- Reuse one downloaded audio file across playlists that contain the same YouTube track, avoiding duplicate storage usage.
+
+### YouTube library integration
+
+- Link a downloaded playlist to an owned YouTube playlist and keep confirmed additions and removals synchronized.
+- Start a local **Track radio** playlist from a YouTube-backed track, with up to 50 recommendations.
+- Save a generated radio snapshot as a private playlist in the signed-in YouTube account.
+- Keep local-only tracks safe: YouTube-only radio and synchronization actions are hidden or rejected with an explanatory message.
 
 ### Download queue
 
@@ -36,12 +44,14 @@ The current **smart download** implementation uses metadata placeholders, on-dem
 - Queue reset that also disables shuffle.
 - The currently playing track is brought into view at the top when the queue panel opens.
 - Shuffle, repeat, previous/next, seeking, full player, and persistent mini player.
+- Lyrics panel pulled up from the player, using YouTube Music lyrics first and YouTube manual/automatic subtitles as fallbacks.
 
 ### Library and interface
 
 - Playlist-based local library backed by Room.
 - Create and delete playlists, search the active playlist, sort tracks, and move tracks between playlists.
 - Multi-select and contextual track actions.
+- A draggable playlist scrollbar for quickly navigating libraries with hundreds of tracks.
 - Monochrome light and dark themes.
 - Dedicated portrait, landscape, phone, and tablet layouts.
 - App-scoped storage, so normal storage permissions are not required.
@@ -75,19 +85,19 @@ This avoids broad storage permissions and is accessible over USB on supported de
 
 - Only `arm64-v8a` phones/tablets and `x86_64` emulators are included in the APK.
 - The APK is large (currently roughly 119 MB) because it bundles Python, `yt-dlp`, and FFmpeg.
-- Viby does not yet provide a global artist/album/genre library, tag editor, lyrics, ReplayGain, gapless playback, crossfade, sleep timer, Android Auto browser, widgets, Chromecast, or selectable download quality/format.
+- Viby does not yet provide a global artist/album/genre library, tag editor, synchronized line-by-line lyrics, ReplayGain, gapless playback, crossfade, sleep timer, Android Auto browser, widgets, Chromecast, or selectable download quality/format.
 - Download throughput for large playlists still needs profiling and optimization. Jobs currently prioritize correctness and deterministic state over maximum parallelism.
 - The release process still needs a permanent production signing key and CI-generated release builds.
-- `lintDebug` currently reports known API, Media3 opt-in, localization, and accessibility issues. `assembleDebug` and the existing unit tests pass.
+- The regression suite currently contains 49 local unit tests and 26 Android instrumentation tests. `lintDebug` passes without errors; remaining warnings are tracked technical debt.
+- OAuth, live YouTube/yt-dlp behavior, network interruption recovery, Bluetooth/audio-focus behavior, and real update installation still require manual smoke testing.
 - YouTube login cookies are sensitive data. Backup exclusions and further WebView/cookie hardening are planned.
 
 ## Roadmap
 
 ### Reliability and test coverage
 
-- Add unit, integration, Room migration, service lifecycle, process-death, and UI tests.
-- Cover playback persistence, shuffle order, download pause/cancel/reorder, placeholders, duplicate handling, retries, and app updating.
-- Resolve all current Android Lint errors and review the remaining warnings.
+- Extend the current unit, Room, parser, widget, lifecycle, portrait/landscape, and playback-persistence coverage with Room migration, process-death, long-running service, retry, and update-installation tests.
+- Review and resolve the remaining Android Lint warnings.
 - Fix minimum-API compatibility and update AndroidX/Media3 dependencies deliberately, with regression testing.
 - Harden cookies, backup rules, WebView navigation, APK digest verification, and release signing.
 
@@ -116,16 +126,18 @@ Requirements:
 Windows:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest assembleDebug
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
 macOS/Linux:
 
 ```bash
-./gradlew testDebugUnitTest assembleDebug
+./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
 The debug APK is generated under `app/build/outputs/apk/debug/`.
+See [TESTING.md](TESTING.md) for the complete automated coverage matrix,
+instrumentation-test command, device-data warning, and manual release checklist.
 
 ## Disclaimer
 
