@@ -184,9 +184,9 @@ public class MainActivity extends AppCompatActivity {
                         if (which == 0) {
                             startActivity(new Intent(this, YoutubePlaylistsActivity.class));
                         } else {
-                            com.example.viby.util.YtCookies.clear(this);
-                            Toast.makeText(this, R.string.logged_out,
-                                    Toast.LENGTH_SHORT).show();
+                            com.example.viby.util.YtCookies.clear(this, () ->
+                                    Toast.makeText(this, R.string.logged_out,
+                                            Toast.LENGTH_SHORT).show());
                         }
                     })
                     .setNegativeButton(android.R.string.cancel, null)

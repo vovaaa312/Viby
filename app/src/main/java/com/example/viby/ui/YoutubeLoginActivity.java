@@ -22,6 +22,7 @@ import com.google.android.material.appbar.MaterialToolbar;
  */
 public class YoutubeLoginActivity extends AppCompatActivity {
 
+    private static final String STATE_DONE = "youtube_login_done";
     private static final String LOGIN_URL =
             "https://accounts.google.com/ServiceLogin?service=youtube"
                     + "&continue=https://m.youtube.com/";
@@ -66,7 +67,24 @@ public class YoutubeLoginActivity extends AppCompatActivity {
                 maybeFinishLogin(url);
             }
         });
-        webView.loadUrl(LOGIN_URL);
+        done = savedInstanceState != null && savedInstanceState.getBoolean(STATE_DONE);
+        boolean restored = savedInstanceState != null
+                && webView.restoreState(savedInstanceState) != null;
+        if (!restored) {
+            beginFreshLogin();
+        }
+    }
+
+    private void beginFreshLogin() {
+        YtCookies.clear(this, () -> {
+            if (isFinishing() || isDestroyed() || webView == null) {
+                return;
+            }
+            webView.clearCache(true);
+            webView.clearHistory();
+            webView.clearFormData();
+            webView.loadUrl(LOGIN_URL);
+        });
     }
 
     /** Пользователь долистал до youtube.com → пробуем снять куки. */
@@ -83,8 +101,16 @@ public class YoutubeLoginActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
+        outState.putBoolean(STATE_DONE, done);
+        webView.saveState(outState);
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
     protected void onDestroy() {
         webView.destroy();
+        webView = null;
         super.onDestroy();
     }
 }

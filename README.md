@@ -2,7 +2,7 @@
 
 Viby is an experimental, AIMP-inspired music player for Android that turns YouTube videos and playlists into an on-device music library. Downloading, metadata extraction, queue management, playback, and app updates run on the phone; Viby does not require its own backend.
 
-> **Project status:** personal-use beta. The main workflows are usable and now have a broad automated regression suite, but the project still needs production signing, dependency updates, performance profiling, and architectural refactoring before it should be treated as a production-ready player.
+> **Project status:** personal-use beta. The main workflows are usable and now have a broad automated regression suite, but the project still needs dependency updates, performance profiling, and architectural refactoring before it should be treated as a production-ready player.
 
 ## What Viby can do
 
@@ -87,8 +87,8 @@ This avoids broad storage permissions and is accessible over USB on supported de
 - The APK is large (currently roughly 119 MB) because it bundles Python, `yt-dlp`, and FFmpeg.
 - Viby does not yet provide a global artist/album/genre library, tag editor, synchronized line-by-line lyrics, ReplayGain, gapless playback, crossfade, sleep timer, Android Auto browser, widgets, Chromecast, or selectable download quality/format.
 - Download throughput for large playlists still needs profiling and optimization. Jobs currently prioritize correctness and deterministic state over maximum parallelism.
-- The release process still needs a permanent production signing key and CI-generated release builds.
-- The regression suite currently contains 49 local unit tests and 26 Android instrumentation tests. `lintDebug` passes without errors; remaining warnings are tracked technical debt.
+- Release APKs use a permanent local signing key. CI-generated and reproducible release builds are still planned.
+- The regression suite currently contains 50 local unit tests and 27 Android instrumentation tests. `lintDebug` passes without errors; remaining warnings are tracked technical debt.
 - OAuth, live YouTube/yt-dlp behavior, network interruption recovery, Bluetooth/audio-focus behavior, and real update installation still require manual smoke testing.
 - YouTube login cookies are sensitive data. Backup exclusions and further WebView/cookie hardening are planned.
 
@@ -138,6 +138,24 @@ macOS/Linux:
 The debug APK is generated under `app/build/outputs/apk/debug/`.
 See [TESTING.md](TESTING.md) for the complete automated coverage matrix,
 instrumentation-test command, device-data warning, and manual release checklist.
+
+### Release signing
+
+Release builds read signing credentials from the untracked `keystore.properties`
+file in the project root. The local file has this format:
+
+```properties
+storeFile=signing/viby-release.jks
+storePassword=your-store-password
+keyAlias=viby-release
+keyPassword=your-key-password
+```
+
+Build a signed APK with `./gradlew assembleRelease` (or
+`.\\gradlew.bat assembleRelease` on Windows). The keystore and credentials are
+intentionally ignored by Git. Losing either the keystore or its passwords makes
+future in-place updates impossible, so keep an encrypted backup outside the
+project and never publish these files.
 
 ## Disclaimer
 

@@ -2,6 +2,14 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def releaseSigningConfigured = keystorePropertiesFile.exists()
+
+if (releaseSigningConfigured) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 android {
     namespace 'com.example.viby'
     compileSdk {
@@ -14,8 +22,8 @@ android {
         applicationId "com.example.viby"
         minSdk 24
         targetSdk 36
-        versionCode 12
-        versionName "1.2.8"
+        versionCode 13
+        versionName "1.2.8.1"
 
         ndk {
             // youtubedl-android ships native python/ffmpeg only for these ABIs
@@ -25,8 +33,22 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -69,4 +91,13 @@ dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.espresso.core
     androidTestImplementation libs.ext.junit
+}
+
+tasks.configureEach { task ->
+    if (task.name == "packageRelease" && !releaseSigningConfigured) {
+        task.doFirst {
+            throw new GradleException(
+                    "Release signing is not configured. Create keystore.properties first.")
+        }
+    }
 }

@@ -191,6 +191,7 @@
     <string name="yt_playlists_title">My YouTube playlists</string>
     <string name="yt_playlists_error">Could not load playlists. The session may have expired.</string>
     <string name="yt_playlists_relogin">Sign in again</string>
+    <string name="yt_playlists_empty">This YouTube account has no playlists yet.</string>
 
     <!-- Official YouTube playlist synchronization -->
     <string name="menu_playlist_sync">YouTube playlist sync</string>

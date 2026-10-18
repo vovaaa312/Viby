@@ -190,6 +190,7 @@
     <string name="yt_playlists_title">Мои плейлисты YouTube</string>
     <string name="yt_playlists_error">Не удалось загрузить плейлисты. Возможно, сессия протухла.</string>
     <string name="yt_playlists_relogin">Войти заново</string>
+    <string name="yt_playlists_empty">На этом аккаунте YouTube пока нет плейлистов.</string>
 
     <!-- Официальная синхронизация плейлистов YouTube -->
     <string name="menu_playlist_sync">Синхронизация с YouTube</string>

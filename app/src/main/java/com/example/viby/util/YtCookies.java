@@ -1,8 +1,13 @@
 package com.example.viby.util;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.webkit.CookieManager;
+import android.webkit.WebStorage;
+
+import androidx.annotation.Nullable;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -82,13 +87,54 @@ public final class YtCookies {
 
     /** Выход из аккаунта: удалить файл и куки WebView. */
     public static void clear(Context context) {
-        //noinspection ResultOfMethodCallIgnored
-        file(context).delete();
-        try {
-            CookieManager.getInstance().removeAllCookies(null);
-            CookieManager.getInstance().flush();
-        } catch (Exception e) {
-            Log.w(TAG, "cookie clear failed", e);
+        clear(context, null);
+    }
+
+    /**
+     * Removes account state and invokes {@code onCleared} only after WebView has
+     * confirmed cookie removal. This prevents a quick re-login from exporting
+     * the previous account's still-pending cookies.
+     */
+    public static void clear(Context context, @Nullable Runnable onCleared) {
+        File exportedCookies = file(context);
+        if (exportedCookies.exists() && !exportedCookies.delete()) {
+            Log.w(TAG, "could not delete exported cookie file");
+        }
+
+        Runnable clearWebView = () -> {
+            try {
+                CookieManager cookieManager = CookieManager.getInstance();
+                cookieManager.removeAllCookies(removed -> {
+                    try {
+                        cookieManager.flush();
+                        WebStorage.getInstance().deleteAllData();
+                    } catch (Exception e) {
+                        Log.w(TAG, "WebView storage clear failed", e);
+                    } finally {
+                        runAfterClear(onCleared);
+                    }
+                });
+            } catch (Exception e) {
+                Log.w(TAG, "cookie clear failed", e);
+                runAfterClear(onCleared);
+            }
+        };
+
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            clearWebView.run();
+        } else {
+            new Handler(Looper.getMainLooper()).post(clearWebView);
+        }
+    }
+
+    private static void runAfterClear(@Nullable Runnable callback) {
+        if (callback == null) {
+            return;
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            callback.run();
+        } else {
+            new Handler(Looper.getMainLooper()).post(callback);
         }
     }
 }

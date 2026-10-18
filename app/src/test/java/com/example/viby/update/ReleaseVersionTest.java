@@ -13,6 +13,12 @@ public class ReleaseVersionTest {
     }
 
     @Test
+    public void fourthVersionComponentIsSupported() {
+        assertTrue(ReleaseVersion.isNewer("v1.2.8.1", "1.2.8"));
+        assertFalse(ReleaseVersion.isNewer("v1.2.8", "1.2.8.1"));
+    }
+
+    @Test
     public void equalVersionsAreNotNewer() {
         assertFalse(ReleaseVersion.isNewer("v1.2.0", "1.2"));
     }

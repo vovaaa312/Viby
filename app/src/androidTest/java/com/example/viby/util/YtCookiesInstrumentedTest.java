@@ -17,6 +17,8 @@ import org.junit.runner.RunWith;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class YtCookiesInstrumentedTest {
@@ -59,6 +61,19 @@ public class YtCookiesInstrumentedTest {
         write("# Netscape HTTP Cookie File\n"
                 + ".youtube.com\tTRUE\t/\tTRUE\t1\tSAPISID\tsecret\n");
         assertTrue(YtCookies.isLoggedIn(context));
+    }
+
+    @Test
+    public void clearDeletesExportedSessionBeforeCompleting() throws Exception {
+        write("# Netscape HTTP Cookie File\n"
+                + ".youtube.com\tTRUE\t/\tTRUE\t1\tSAPISID\tsecret\n");
+        CountDownLatch cleared = new CountDownLatch(1);
+
+        YtCookies.clear(context, cleared::countDown);
+
+        assertTrue(cleared.await(5, TimeUnit.SECONDS));
+        assertFalse(YtCookies.file(context).exists());
+        assertFalse(YtCookies.isLoggedIn(context));
     }
 
     private void write(String value) throws Exception {

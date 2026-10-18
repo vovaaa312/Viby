@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -42,6 +43,7 @@ import java.util.concurrent.Executors;
  */
 public class YoutubePlaylistsActivity extends AppCompatActivity {
 
+    private static final String TAG = "YoutubePlaylists";
     private static final String FEED_URL = "https://www.youtube.com/feed/playlists";
 
     /** Название + ссылка одного плейлиста аккаунта. */
@@ -60,6 +62,7 @@ public class YoutubePlaylistsActivity extends AppCompatActivity {
 
     private ProgressBar progress;
     private View errorBox;
+    private View emptyBox;
     private Adapter adapter;
 
     @Override
@@ -72,6 +75,7 @@ public class YoutubePlaylistsActivity extends AppCompatActivity {
 
         progress = findViewById(R.id.ytPlaylistsProgress);
         errorBox = findViewById(R.id.ytPlaylistsError);
+        emptyBox = findViewById(R.id.ytPlaylistsEmpty);
         findViewById(R.id.ytPlaylistsRelogin).setOnClickListener(v -> {
             startActivity(new Intent(this, YoutubeLoginActivity.class));
             finish();
@@ -94,6 +98,7 @@ public class YoutubePlaylistsActivity extends AppCompatActivity {
                 request.addOption("--flat-playlist");
                 request.addOption("--dump-single-json");
                 request.addOption("--no-warnings");
+                request.addOption("--no-cache-dir");
                 request.addOption("--cookies", YtCookies.file(this).getAbsolutePath());
                 YoutubeDLResponse response =
                         YoutubeDL.getInstance().execute(request, "yt-playlists", null);
@@ -117,6 +122,7 @@ public class YoutubePlaylistsActivity extends AppCompatActivity {
                 }
                 mainHandler.post(() -> showPlaylists(playlists));
             } catch (Exception e) {
+                Log.e(TAG, "Could not load the signed-in account playlists", e);
                 mainHandler.post(this::showError);
             }
         });
@@ -124,16 +130,23 @@ public class YoutubePlaylistsActivity extends AppCompatActivity {
 
     private void showPlaylists(List<YtPlaylist> playlists) {
         progress.setVisibility(View.GONE);
-        if (playlists.isEmpty()) {
-            showError();
-            return;
-        }
+        errorBox.setVisibility(View.GONE);
+        emptyBox.setVisibility(playlists.isEmpty() ? View.VISIBLE : View.GONE);
         adapter.submit(playlists);
     }
 
     private void showError() {
         progress.setVisibility(View.GONE);
+        emptyBox.setVisibility(View.GONE);
+        adapter.submit(java.util.Collections.emptyList());
         errorBox.setVisibility(View.VISIBLE);
+    }
+
+    @Override
+    protected void onDestroy() {
+        executor.shutdownNow();
+        mainHandler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 
     /** Подтверждение с именем папки, потом — в обычный конвейер загрузки. */

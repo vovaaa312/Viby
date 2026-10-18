@@ -46,6 +46,16 @@
             android:text="@string/yt_playlists_relogin" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/ytPlaylistsEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="32dp"
+        android:text="@string/yt_playlists_empty"
+        android:textColor="@color/viby_text_secondary"
+        android:visibility="gone" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/ytPlaylistsList"
         android:layout_width="match_parent"
