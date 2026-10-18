@@ -15,11 +15,13 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaController;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -41,6 +43,7 @@ import java.util.List;
  * Долгий тап — контекстное меню как в AIMP; из него доступен режим
  * множественного выбора с групповыми действиями.
  */
+@OptIn(markerClass = UnstableApi.class)
 public class QueueFragment extends Fragment implements TracksAdapter.Listener {
 
     private static final int ACTION_PLAY = 0;

@@ -5,11 +5,11 @@ import android.util.Log;
 import android.webkit.CookieManager;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 /**
  * Куки YouTube-аккаунта для yt-dlp (--cookies): снимают возрастные
@@ -35,10 +35,14 @@ public final class YtCookies {
         if (!file.exists()) {
             return false;
         }
-        try {
-            String content = new String(Files.readAllBytes(file.toPath()),
-                    StandardCharsets.UTF_8);
-            return content.contains(AUTH_COOKIE);
+        try (FileInputStream input = new FileInputStream(file)) {
+            StringBuilder content = new StringBuilder();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                content.append(new String(buffer, 0, read, StandardCharsets.UTF_8));
+            }
+            return content.indexOf(AUTH_COOKIE) >= 0;
         } catch (Exception e) {
             return false;
         }

@@ -20,7 +20,6 @@ import com.example.viby.util.Formats;
 import com.google.android.material.color.MaterialColors;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /** Rows in the editable playback queue bottom sheet. */
@@ -65,7 +64,8 @@ final class PlaybackQueueAdapter
                 || from >= items.size() || to >= items.size()) {
             return;
         }
-        Collections.swap(items, from, to);
+        QueueItem moved = items.remove(from);
+        items.add(to, moved);
         notifyItemMoved(from, to);
     }
 

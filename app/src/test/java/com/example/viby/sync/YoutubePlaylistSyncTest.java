@@ -62,6 +62,49 @@ public class YoutubePlaylistSyncTest {
         assertNull(tracks.get(1).youtubePosition);
     }
 
+    @Test
+    public void staleOccurrenceIdIsReplacedByMatchingVideoOccurrence() {
+        Track track = track(1, "video", 0);
+        track.youtubePlaylistItemId = "stale-item";
+        List<Track> tracks = new ArrayList<>(Arrays.asList(track));
+
+        YoutubePlaylistSync.linkTracks(tracks,
+                Arrays.asList(item("new-item", "video", 4)), true);
+
+        assertEquals("new-item", track.youtubePlaylistItemId);
+        assertEquals(Integer.valueOf(4), track.youtubePosition);
+    }
+
+    @Test
+    public void missingRemoteOccurrenceClearsOldLink() {
+        Track track = track(1, "video", 0);
+        track.youtubePlaylistItemId = "old-item";
+        track.youtubePosition = 9;
+
+        int linked = YoutubePlaylistSync.linkTracks(
+                new ArrayList<>(Arrays.asList(track)), new ArrayList<>(), true);
+
+        assertEquals(0, linked);
+        assertNull(track.youtubePlaylistItemId);
+        assertNull(track.youtubePosition);
+    }
+
+    @Test
+    public void linkingWithoutReorderPreservesLocalListAndPositions() {
+        Track first = track(1, "first", 10);
+        Track second = track(2, "second", 20);
+        List<Track> tracks = new ArrayList<>(Arrays.asList(first, second));
+
+        YoutubePlaylistSync.linkTracks(tracks, Arrays.asList(
+                item("second-item", "second", 0),
+                item("first-item", "first", 1)), false);
+
+        assertEquals(1, tracks.get(0).id);
+        assertEquals(2, tracks.get(1).id);
+        assertEquals(10, tracks.get(0).position);
+        assertEquals(20, tracks.get(1).position);
+    }
+
     private static Track track(long id, String videoId, int position) {
         Track track = new Track();
         track.id = id;

@@ -9,6 +9,8 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.Timeline;
+import androidx.media3.common.util.UnstableApi;
+import androidx.annotation.OptIn;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.ShuffleOrder;
 
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Persists the Media3 queue independently from the activity and the service process. */
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackStateStore {
 
     private static final String TAG = "PlaybackStateStore";

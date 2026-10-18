@@ -189,10 +189,8 @@ public final class PlaylistFastScroller extends View {
         if (!(manager instanceof LinearLayoutManager)) {
             return;
         }
-        float available = Math.max(1f, getHeight() - metrics.thumbHeight);
-        float top = clamp(touchY - dragOffset, 0f, available);
-        float fraction = top / available;
-        int target = Math.round(fraction * metrics.maximumFirstPosition);
+        int target = PlaylistScrollMath.targetPosition(touchY, dragOffset, getHeight(),
+                metrics.thumbHeight, metrics.maximumFirstPosition);
         ((LinearLayoutManager) manager).scrollToPositionWithOffset(target, 0);
         invalidate();
     }
@@ -220,11 +218,10 @@ public final class PlaylistFastScroller extends View {
             return null;
         }
         int maximumFirst = Math.max(1, itemCount - visible);
-        float thumbHeight = Math.max(minimumThumbHeight,
-                getHeight() * (visible / (float) itemCount));
-        thumbHeight = Math.min(getHeight(), thumbHeight);
-        float fraction = clamp(first / (float) maximumFirst, 0f, 1f);
-        float top = fraction * (getHeight() - thumbHeight);
+        float thumbHeight = PlaylistScrollMath.thumbHeight(
+                getHeight(), visible, itemCount, minimumThumbHeight);
+        float top = PlaylistScrollMath.thumbTop(
+                getHeight(), thumbHeight, first, maximumFirst);
         return new Metrics(top, thumbHeight, maximumFirst);
     }
 

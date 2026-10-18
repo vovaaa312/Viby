@@ -46,4 +46,28 @@ public class EqPresetsTest {
         assertEquals(legacy[0], migrated[0], 0.0001f);
         assertEquals(legacy[legacy.length - 1], migrated[migrated.length - 1], 0.0001f);
     }
+
+    @Test
+    public void gainAtClampsOutsideGridAndInterpolatesLogarithmically() {
+        float[] curve = {0f, 10f};
+        float[] frequencies = {100f, 400f};
+        float[] target = {25f, 100f, 200f, 400f, 800f};
+
+        assertArrayEquals(new float[]{0f, 0f, 5f, 10f, 10f},
+                EqPresets.resample(curve, frequencies, target), 0.0001f);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void resamplingRejectsMismatchedCurveAndFrequencyCounts() {
+        EqPresets.resample(new float[]{1f}, new float[]{100f, 200f},
+                new float[]{150f});
+    }
+
+    @Test
+    public void unknownPresetFallsBackToZeroCurve() {
+        float[] curve = EqPresets.curve("does-not-exist");
+        for (float gain : curve) {
+            assertEquals(0f, gain, 0f);
+        }
+    }
 }

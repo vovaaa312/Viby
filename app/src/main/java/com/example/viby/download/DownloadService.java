@@ -967,27 +967,16 @@ public class DownloadService extends Service {
     // ------------------------------------------------------- pause / cancel
 
     private void setJobPaused(long jobId, boolean paused) {
-        DownloadJob job;
-        boolean killProcess = false;
+        DownloadQueueActions.PauseResult result;
         synchronized (jobs) {
-            job = findJobLocked(jobId);
-            if (job == null || !job.isActive() || job.cancelRequested) {
-                return;
-            }
-            job.pauseRequested = paused;
-            if (paused) {
-                if (job == activeJob) {
-                    job.pauseInterrupted = true;
-                    killProcess = true;
-                } else {
-                    job.status = DownloadJob.Status.PAUSED;
-                }
-            } else if (job.status == DownloadJob.Status.PAUSED) {
-                job.status = DownloadJob.Status.QUEUED;
-            }
+            result = DownloadQueueActions.setPaused(jobs, activeJob, jobId, paused);
         }
+        if (!result.changed()) {
+            return;
+        }
+        DownloadJob job = result.job;
         persistPaused(job);
-        if (killProcess) {
+        if (result.killActiveProcess) {
             killActiveProcess();
         }
         publish(true);
@@ -996,27 +985,18 @@ public class DownloadService extends Service {
     }
 
     private void cancelJob(long jobId) {
-        DownloadJob job;
-        boolean killProcess = false;
-        boolean finishImmediately = false;
+        DownloadQueueActions.CancelResult result;
         synchronized (jobs) {
-            job = findJobLocked(jobId);
-            if (job == null || !job.isActive()) {
-                return;
-            }
-            job.cancelRequested = true;
-            job.pauseRequested = false;
-            if (job == activeJob) {
-                killProcess = true;
-            } else {
-                job.status = DownloadJob.Status.CANCELED;
-                finishImmediately = true;
-            }
+            result = DownloadQueueActions.cancel(jobs, activeJob, jobId);
         }
-        if (killProcess) {
+        if (!result.changed()) {
+            return;
+        }
+        DownloadJob job = result.job;
+        if (result.killActiveProcess) {
             killActiveProcess();
         }
-        if (finishImmediately) {
+        if (result.finishImmediately) {
             cleanupPendingPlaceholders(job);
             removePending(job);
         }
@@ -1026,15 +1006,12 @@ public class DownloadService extends Service {
     }
 
     private void moveJobInternal(long jobId, long targetJobId) {
+        boolean changed;
         synchronized (jobs) {
-            int from = indexOfJobLocked(jobId);
-            int to = indexOfJobLocked(targetJobId);
-            if (from < 0 || to < 0 || from == to
-                    || !jobs.get(from).isActive() || !jobs.get(to).isActive()) {
-                return;
-            }
-            DownloadJob moved = jobs.remove(from);
-            jobs.add(to, moved);
+            changed = DownloadQueueActions.moveJob(jobs, jobId, targetJobId);
+        }
+        if (!changed) {
+            return;
         }
         persistQueueOrder();
         publish(true);
@@ -1053,15 +1030,9 @@ public class DownloadService extends Service {
             return;
         }
         synchronized (job.tracks) {
-            int from = indexOfTrackLocked(job, videoId);
-            int to = indexOfTrackLocked(job, targetVideoId);
-            if (from < 0 || to < 0
-                    || job.tracks.get(from).status != DownloadJob.TrackItem.Status.WAITING
-                    || job.tracks.get(to).status != DownloadJob.TrackItem.Status.WAITING) {
+            if (!DownloadQueueActions.moveTrack(job, videoId, targetVideoId)) {
                 return;
             }
-            DownloadJob.TrackItem moved = job.tracks.remove(from);
-            job.tracks.add(to, moved);
             job.trackOrderJson = serializeTrackOrderLocked(job);
         }
         persistTrackOrder(job);

@@ -73,7 +73,7 @@ public final class YoutubeLyricsRepository {
         }
     }
 
-    private static final class Caption {
+    static final class Caption {
         final String url;
         final String language;
         final boolean automatic;
@@ -85,7 +85,7 @@ public final class YoutubeLyricsRepository {
         }
     }
 
-    private static final class MusicLyrics {
+    static final class MusicLyrics {
         final String text;
         final String attribution;
 
@@ -252,7 +252,7 @@ public final class YoutubeLyricsRepository {
         }
     }
 
-    private static String appendConsentCookie(@Nullable String cookies) {
+    static String appendConsentCookie(@Nullable String cookies) {
         if (cookies == null || cookies.isEmpty()) {
             return "SOCS=CAI";
         }
@@ -260,7 +260,7 @@ public final class YoutubeLyricsRepository {
     }
 
     @Nullable
-    private static String findLyricsBrowseId(Object value) {
+    static String findLyricsBrowseId(Object value) {
         if (value instanceof JSONObject) {
             JSONObject object = (JSONObject) value;
             JSONObject browse = object.optJSONObject("browseEndpoint");
@@ -297,7 +297,7 @@ public final class YoutubeLyricsRepository {
     }
 
     @Nullable
-    private static MusicLyrics findMusicLyrics(Object value) {
+    static MusicLyrics findMusicLyrics(Object value) {
         if (value instanceof JSONObject) {
             JSONObject object = (JSONObject) value;
             JSONArray timed = object.optJSONArray("timedLyricsData");
@@ -340,7 +340,7 @@ public final class YoutubeLyricsRepository {
         return null;
     }
 
-    private static String textFromRuns(@Nullable Object value) {
+    static String textFromRuns(@Nullable Object value) {
         if (value instanceof String) {
             return (String) value;
         }
@@ -371,7 +371,7 @@ public final class YoutubeLyricsRepository {
         }
     }
 
-    private static JSONObject extractPlayerResponse(String watchPage) throws Exception {
+    static JSONObject extractPlayerResponse(String watchPage) throws Exception {
         String[] markers = {
                 "ytInitialPlayerResponse =",
                 "\"ytInitialPlayerResponse\":"
@@ -409,7 +409,7 @@ public final class YoutubeLyricsRepository {
     }
 
     @Nullable
-    private static String balancedObject(String source, int start) {
+    static String balancedObject(String source, int start) {
         int depth = 0;
         boolean quoted = false;
         boolean escaped = false;
@@ -437,7 +437,7 @@ public final class YoutubeLyricsRepository {
     }
 
     @Nullable
-    private static Caption chooseCaption(JSONObject playerResponse) {
+    static Caption chooseCaption(JSONObject playerResponse) {
         JSONObject captions = playerResponse.optJSONObject("captions");
         JSONObject renderer = captions != null
                 ? captions.optJSONObject("playerCaptionsTracklistRenderer") : null;
@@ -468,7 +468,7 @@ public final class YoutubeLyricsRepository {
     }
 
     @Nullable
-    private static Caption selectLanguage(List<Caption> captions) {
+    static Caption selectLanguage(List<Caption> captions) {
         if (captions.isEmpty()) {
             return null;
         }
@@ -533,7 +533,7 @@ public final class YoutubeLyricsRepository {
         return result.toString();
     }
 
-    private static String parseJson3(String payload) throws Exception {
+    static String parseJson3(String payload) throws Exception {
         JSONArray events = new JSONObject(payload).optJSONArray("events");
         if (events == null) {
             return "";
@@ -557,7 +557,7 @@ public final class YoutubeLyricsRepository {
         return String.join("\n", lines).trim();
     }
 
-    private static String absoluteYoutubeUrl(String url) {
+    static String absoluteYoutubeUrl(String url) {
         if (url.startsWith("//")) {
             return "https:" + url;
         }
@@ -567,7 +567,7 @@ public final class YoutubeLyricsRepository {
         return url;
     }
 
-    private static void appendLines(List<String> lines, String cue) {
+    static void appendLines(List<String> lines, String cue) {
         for (String part : cue.split("\\r?\\n")) {
             String line = part.trim().replaceAll("\\s+", " ");
             if (!line.isEmpty()

@@ -242,6 +242,7 @@
     <string name="lyrics_local_track">Текст YouTube недоступен для трека, добавленного с устройства</string>
     <string name="lyrics_load_failed">Не удалось загрузить текст с YouTube. Проверьте подключение и попробуйте ещё раз</string>
     <string name="playlist_fast_scroll">Быстрая прокрутка плейлиста</string>
+    <string name="currently_playing">Сейчас воспроизводится</string>
 
     <!-- Misc -->
     <string name="menu_playlists_header">Плейлисты</string>

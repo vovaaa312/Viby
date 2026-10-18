@@ -1,6 +1,7 @@
 package com.example.viby.playback;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNotSame;
 
 import org.junit.Test;
 
@@ -44,5 +45,28 @@ public class PlaybackQueueOrderTest {
                 shuffledAfterInsertion, 8, 3, 1);
 
         assertArrayEquals(shuffledAfterInsertion, result);
+        assertNotSame(shuffledAfterInsertion, result);
+    }
+
+    @Test
+    public void invalidInsertionNeverMutatesInput() {
+        int[] order = {2, 0, 1};
+
+        assertArrayEquals(order,
+                PlaybackQueueOrder.moveInsertedRangeAfterCurrent(order, 2, -1, 1));
+        assertArrayEquals(order,
+                PlaybackQueueOrder.moveInsertedRangeAfterCurrent(order, 2, 2, 2));
+        assertArrayEquals(order,
+                PlaybackQueueOrder.moveInsertedRangeAfterCurrent(order, 2, 1, 0));
+        assertArrayEquals(new int[0],
+                PlaybackQueueOrder.moveInsertedRangeAfterCurrent(null, 0, 0, 1));
+    }
+
+    @Test
+    public void currentInsideInsertedRangeLeavesOrderUntouched() {
+        int[] order = {2, 0, 1, 3};
+
+        assertArrayEquals(order,
+                PlaybackQueueOrder.moveInsertedRangeAfterCurrent(order, 1, 1, 2));
     }
 }

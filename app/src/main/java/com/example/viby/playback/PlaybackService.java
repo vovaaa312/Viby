@@ -9,6 +9,7 @@ import android.os.Bundle;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
@@ -19,6 +20,7 @@ import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
 import androidx.media3.session.SessionCommand;
 import androidx.media3.session.SessionCommands;
+import androidx.media3.session.SessionError;
 import androidx.media3.session.SessionResult;
 import androidx.media3.exoplayer.source.ShuffleOrder;
 
@@ -33,6 +35,7 @@ import java.util.List;
  * Фоновое воспроизведение через Media3: MediaSession даёт системное
  * уведомление с управлением, аудиофокус и паузу при отключении наушников.
  */
+@OptIn(markerClass = UnstableApi.class)
 public class PlaybackService extends MediaSessionService {
 
     public static final String ACTION_SET_SHUFFLE_ORDER =
@@ -123,14 +126,14 @@ public class PlaybackService extends MediaSessionService {
                 @NonNull Bundle args) {
             if (player == null) {
                 return Futures.immediateFuture(
-                        new SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED));
+                        new SessionResult(SessionError.ERROR_NOT_SUPPORTED));
             }
 
             if (ACTION_INSERT_AFTER_CURRENT.equals(customCommand.customAction)) {
                 ArrayList<Bundle> itemBundles = args.getParcelableArrayList(EXTRA_MEDIA_ITEMS);
                 if (itemBundles == null || itemBundles.isEmpty()) {
                     return Futures.immediateFuture(
-                            new SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE));
+                            new SessionResult(SessionError.ERROR_BAD_VALUE));
                 }
                 List<MediaItem> items = new ArrayList<>(itemBundles.size());
                 try {
@@ -142,7 +145,7 @@ public class PlaybackService extends MediaSessionService {
                     }
                 } catch (RuntimeException invalidItem) {
                     return Futures.immediateFuture(
-                            new SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE));
+                            new SessionResult(SessionError.ERROR_BAD_VALUE));
                 }
                 insertAfterCurrent(items);
                 return Futures.immediateFuture(
@@ -151,12 +154,12 @@ public class PlaybackService extends MediaSessionService {
 
             if (!ACTION_SET_SHUFFLE_ORDER.equals(customCommand.customAction)) {
                 return Futures.immediateFuture(
-                        new SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED));
+                        new SessionResult(SessionError.ERROR_NOT_SUPPORTED));
             }
             int[] order = args.getIntArray(EXTRA_SHUFFLE_ORDER);
             if (!isValidShuffleOrder(order, player.getMediaItemCount())) {
                 return Futures.immediateFuture(
-                        new SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE));
+                        new SessionResult(SessionError.ERROR_BAD_VALUE));
             }
             player.setShuffleOrder(new ShuffleOrder.DefaultShuffleOrder(
                     order, System.nanoTime()));
