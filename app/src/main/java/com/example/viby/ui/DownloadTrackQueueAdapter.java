@@ -20,6 +20,8 @@ final class DownloadTrackQueueAdapter
 
     interface Listener {
         void onStartDrag(RecyclerView.ViewHolder holder);
+
+        void onFailedTrack(DownloadJob.TrackItem item);
     }
 
     private final Listener listener;
@@ -89,11 +91,17 @@ final class DownloadTrackQueueAdapter
                 case DOWNLOADING:
                     status = itemView.getContext().getString(R.string.download_track_active);
                     break;
-                case DONE:
+                case DOWNLOADED:
                     status = itemView.getContext().getString(R.string.download_track_done);
                     break;
-                case FAILED:
-                    status = itemView.getContext().getString(R.string.download_track_failed);
+                case RETRY_SCHEDULED:
+                    status = itemView.getContext().getString(
+                            R.string.download_track_retry_scheduled, item.attemptCount + 1);
+                    break;
+                case FAILED_TEMPORARY:
+                case FAILED_PERMANENT:
+                    status = item.failureMessage != null ? item.failureMessage
+                            : itemView.getContext().getString(R.string.download_track_failed);
                     break;
                 default:
                     status = itemView.getContext().getString(R.string.download_track_waiting);
@@ -115,6 +123,10 @@ final class DownloadTrackQueueAdapter
                 }
                 return false;
             });
+            boolean failed = item.status == DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                    || item.status == DownloadJob.TrackItem.Status.FAILED_PERMANENT;
+            itemView.setClickable(failed);
+            itemView.setOnClickListener(failed ? view -> listener.onFailedTrack(item) : null);
         }
     }
 }

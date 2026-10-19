@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Button;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -28,6 +29,7 @@ public final class DownloadTrackQueueDialogFragment extends BottomSheetDialogFra
     private ItemTouchHelper itemTouchHelper;
     private TextView title;
     private TextView empty;
+    private Button retryAll;
 
     static DownloadTrackQueueDialogFragment newInstance(long jobId) {
         DownloadTrackQueueDialogFragment fragment =
@@ -55,11 +57,22 @@ public final class DownloadTrackQueueDialogFragment extends BottomSheetDialogFra
         empty = view.findViewById(R.id.downloadTrackQueueEmpty);
         RecyclerView list = view.findViewById(R.id.downloadTrackQueueList);
 
-        adapter = new DownloadTrackQueueAdapter(holder -> {
-            if (itemTouchHelper != null) {
-                itemTouchHelper.startDrag(holder);
+        adapter = new DownloadTrackQueueAdapter(new DownloadTrackQueueAdapter.Listener() {
+            @Override
+            public void onStartDrag(RecyclerView.ViewHolder holder) {
+                if (itemTouchHelper != null) {
+                    itemTouchHelper.startDrag(holder);
+                }
+            }
+
+            @Override
+            public void onFailedTrack(DownloadJob.TrackItem item) {
+                showFailure(item);
             }
         });
+        retryAll = view.findViewById(R.id.downloadRetryAll);
+        retryAll.setOnClickListener(v -> DownloadService.retryAllFailed(
+                requireContext(), jobId));
         list.setAdapter(adapter);
         itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
                 ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
@@ -114,5 +127,35 @@ public final class DownloadTrackQueueDialogFragment extends BottomSheetDialogFra
         }
         adapter.submit(snapshot);
         empty.setVisibility(snapshot.isEmpty() ? View.VISIBLE : View.GONE);
+        retryAll.setVisibility(selected.failedCount > 0 ? View.VISIBLE : View.GONE);
+    }
+
+    private void showFailure(DownloadJob.TrackItem item) {
+        String reason = item.failureMessage != null ? item.failureMessage
+                : getString(R.string.download_error_unknown);
+        String diagnostic = getString(R.string.download_diagnostic_template,
+                item.title, item.videoId, reason,
+                item.failureCode != null ? item.failureCode : "UNKNOWN",
+                item.attemptCount,
+                item.selectedFormat != null ? item.selectedFormat : "—",
+                item.requiresAuthorization ? "yes" : "no");
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.download_failure_reason_title)
+                .setMessage(reason)
+                .setPositiveButton(R.string.download_retry_one, (dialog, which) ->
+                        DownloadService.retryTrack(requireContext(), jobId, item.videoId))
+                .setNegativeButton(R.string.download_remove_failed, (dialog, which) ->
+                        DownloadService.removeFailedTrack(
+                                requireContext(), jobId, item.videoId))
+                .setNeutralButton(R.string.download_copy_diagnostic, (dialog, which) -> {
+                    android.content.ClipboardManager clipboard = requireContext()
+                            .getSystemService(android.content.ClipboardManager.class);
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                            "Viby download diagnostic", diagnostic));
+                    android.widget.Toast.makeText(requireContext(),
+                            R.string.download_diagnostic_copied,
+                            android.widget.Toast.LENGTH_SHORT).show();
+                })
+                .show();
     }
 }

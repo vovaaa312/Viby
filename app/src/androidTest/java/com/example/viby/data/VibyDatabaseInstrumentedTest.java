@@ -42,6 +42,13 @@ public class VibyDatabaseInstrumentedTest {
         Track later = track("playlist", "same-video", 4, true, "/music/shared.m4a");
         Track first = track("playlist", "first-video", 0, true, "/music/first.m4a");
         Track pending = track("playlist", "same-video", 2, false, "");
+        pending.downloadState = Track.DOWNLOAD_FAILED_TEMPORARY;
+        pending.downloadErrorCode = "NETWORK";
+        pending.downloadErrorMessage = "Network interrupted";
+        pending.downloadAttemptCount = 4;
+        pending.downloadLastAttemptAt = 123L;
+        pending.downloadFormat = "m4a";
+        pending.downloadProgress = 42;
         Track copy = track("other", "same-video", 0, true, "/music/shared.m4a");
 
         long laterId = database.trackDao().insert(later);
@@ -61,6 +68,13 @@ public class VibyDatabaseInstrumentedTest {
                 .getDownloadedByVideoIdGloballySync("same-video").size());
         assertEquals(2, database.trackDao().countFileReferences("/music/shared.m4a"));
         assertEquals(firstId, database.trackDao().getByIdSync(firstId).id);
+        Track storedPending = database.trackDao().getByIdSync(pendingId);
+        assertEquals(Track.DOWNLOAD_FAILED_TEMPORARY, storedPending.downloadState);
+        assertEquals("NETWORK", storedPending.downloadErrorCode);
+        assertEquals(4, storedPending.downloadAttemptCount);
+        assertEquals(123L, storedPending.downloadLastAttemptAt);
+        assertEquals("m4a", storedPending.downloadFormat);
+        assertEquals(42, storedPending.downloadProgress);
 
         database.trackDao().deletePending("playlist", "same-video");
 

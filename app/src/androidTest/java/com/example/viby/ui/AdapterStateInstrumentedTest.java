@@ -77,7 +77,10 @@ public class AdapterStateInstrumentedTest {
         assertEquals(first.id, jobsAdapter.getJobId(2));
 
         DownloadTrackQueueAdapter tracksAdapter =
-                new DownloadTrackQueueAdapter(holder -> { });
+                new DownloadTrackQueueAdapter(new DownloadTrackQueueAdapter.Listener() {
+                    @Override public void onStartDrag(RecyclerView.ViewHolder holder) { }
+                    @Override public void onFailedTrack(DownloadJob.TrackItem item) { }
+                });
         DownloadJob.TrackItem waitingA = item("a", DownloadJob.TrackItem.Status.WAITING);
         DownloadJob.TrackItem downloading =
                 item("busy", DownloadJob.TrackItem.Status.DOWNLOADING);

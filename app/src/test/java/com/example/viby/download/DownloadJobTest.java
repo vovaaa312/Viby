@@ -35,6 +35,7 @@ public class DownloadJobTest {
         }
         for (DownloadJob.Status status : new DownloadJob.Status[]{
                 DownloadJob.Status.DONE,
+                DownloadJob.Status.COMPLETED_WITH_ERRORS,
                 DownloadJob.Status.FAILED,
                 DownloadJob.Status.CANCELED}) {
             job.status = status;

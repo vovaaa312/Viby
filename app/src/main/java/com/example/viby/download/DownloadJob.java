@@ -5,10 +5,16 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Одно задание в очереди загрузок (трек или целый плейлист). */
 public class DownloadJob {
 
-    public enum Status { QUEUED, PREPARING, DOWNLOADING, PAUSED, DONE, FAILED, CANCELED }
+    public enum Status {
+        QUEUED, PREPARING, DOWNLOADING, PAUSED, DONE, COMPLETED_WITH_ERRORS,
+        FAILED, CANCELED
+    }
 
     public static final class TrackItem {
-        public enum Status { WAITING, DOWNLOADING, DONE, FAILED }
+        public enum Status {
+            WAITING, DOWNLOADING, DOWNLOADED, RETRY_SCHEDULED,
+            FAILED_TEMPORARY, FAILED_PERMANENT
+        }
 
         public final String videoId;
         public final String title;
@@ -18,6 +24,14 @@ public class DownloadJob {
         public volatile Status status = Status.WAITING;
         /** Download progress for this exact playlist entry, from 0 to 100. */
         public volatile int progress;
+        public volatile int persistedProgress;
+        public volatile String failureCode;
+        public volatile String failureMessage;
+        public volatile int attemptCount;
+        public volatile long lastAttemptAt;
+        public volatile long nextRetryAt;
+        public volatile String selectedFormat;
+        public volatile boolean requiresAuthorization;
 
         public TrackItem(String videoId, String title, String uploader,
                          long durationMs, int youtubePosition) {
@@ -47,6 +61,12 @@ public class DownloadJob {
     /** Байты текущего трека: скачано / всего (0 если yt-dlp не сообщил размер). */
     public volatile long downloadedBytes;
     public volatile long totalBytes;
+    /** The active transfer is waiting until Android reports a usable internet connection. */
+    public volatile boolean waitingForNetwork;
+    /** A real yt-dlp request failed because YouTube was unreachable; retry until it recovers. */
+    public volatile boolean networkRetrying;
+    /** Network disappeared while a yt-dlp process was running, even if it returned later. */
+    volatile boolean networkInterrupted;
     /** Для плейлистов: номер текущего трека и всего треков. */
     public volatile int currentIndex;
     public volatile int totalCount;

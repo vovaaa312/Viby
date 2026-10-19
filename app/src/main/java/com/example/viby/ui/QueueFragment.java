@@ -240,6 +240,10 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
     @Override
     public void onTrackLongClick(Track track) {
         if (!track.downloaded) {
+            if (isFailedDownload(track)) {
+                showFailedDownloadDialog(track);
+                return;
+            }
             Toast.makeText(requireContext(), R.string.pending_track_actions_disabled,
                     Toast.LENGTH_SHORT).show();
             return;
@@ -310,8 +314,46 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
 
     @Override
     public void onTrackClick(Track track, int position) {
+        if (!track.downloaded && isFailedDownload(track)) {
+            showFailedDownloadDialog(track);
+            return;
+        }
         // position — индекс в отфильтрованном списке; реальный ищем по id
         playFromList(track);
+    }
+
+    private static boolean isFailedDownload(Track track) {
+        return Track.DOWNLOAD_FAILED_TEMPORARY.equals(track.downloadState)
+                || Track.DOWNLOAD_FAILED_PERMANENT.equals(track.downloadState);
+    }
+
+    private void showFailedDownloadDialog(Track track) {
+        String reason = track.downloadErrorMessage != null
+                ? track.downloadErrorMessage : getString(R.string.download_error_unknown);
+        String diagnostic = getString(R.string.download_diagnostic_template,
+                track.title,
+                track.videoId != null ? track.videoId : "—",
+                reason,
+                track.downloadErrorCode != null ? track.downloadErrorCode : "UNKNOWN",
+                track.downloadAttemptCount,
+                track.downloadFormat != null ? track.downloadFormat : "—",
+                track.downloadRequiresAuthorization ? "yes" : "no");
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.download_failure_reason_title)
+                .setMessage(reason)
+                .setPositiveButton(R.string.download_retry_one, (dialog, which) ->
+                        DownloadService.retryPersistedTrack(requireContext(), track))
+                .setNegativeButton(R.string.download_remove_failed, (dialog, which) ->
+                        ((MainActivity) requireActivity()).confirmDeleteTrack(track))
+                .setNeutralButton(R.string.download_copy_diagnostic, (dialog, which) -> {
+                    android.content.ClipboardManager clipboard = requireContext()
+                            .getSystemService(android.content.ClipboardManager.class);
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                            "Viby download diagnostic", diagnostic));
+                    Toast.makeText(requireContext(), R.string.download_diagnostic_copied,
+                            Toast.LENGTH_SHORT).show();
+                })
+                .show();
     }
 
     @Override

@@ -6,6 +6,9 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -59,6 +62,9 @@ public class DownloadService extends Service {
     public static final String ACTION_MOVE_TRACK = "com.example.viby.action.MOVE_TRACK";
     public static final String ACTION_PRIORITIZE_TRACK =
             "com.example.viby.action.PRIORITIZE_TRACK";
+    public static final String ACTION_RETRY_TRACK = "com.example.viby.action.RETRY_TRACK";
+    public static final String ACTION_RETRY_FAILED = "com.example.viby.action.RETRY_FAILED";
+    public static final String ACTION_REMOVE_FAILED = "com.example.viby.action.REMOVE_FAILED";
     public static final String EXTRA_URL = "url";
     public static final String EXTRA_PLAYLIST = "playlist";
     public static final String EXTRA_IS_PLAYLIST = "is_playlist";
@@ -128,6 +134,33 @@ public class DownloadService extends Service {
                 .putExtra(EXTRA_TRACK_ID, videoId));
     }
 
+    public static void retryTrack(Context context, long jobId, String videoId) {
+        context.startService(new Intent(context, DownloadService.class)
+                .setAction(ACTION_RETRY_TRACK)
+                .putExtra(EXTRA_JOB_ID, jobId)
+                .putExtra(EXTRA_TRACK_ID, videoId));
+    }
+
+    public static void retryAllFailed(Context context, long jobId) {
+        context.startService(new Intent(context, DownloadService.class)
+                .setAction(ACTION_RETRY_FAILED)
+                .putExtra(EXTRA_JOB_ID, jobId));
+    }
+
+    public static void removeFailedTrack(Context context, long jobId, String videoId) {
+        context.startService(new Intent(context, DownloadService.class)
+                .setAction(ACTION_REMOVE_FAILED)
+                .putExtra(EXTRA_JOB_ID, jobId)
+                .putExtra(EXTRA_TRACK_ID, videoId));
+    }
+
+    /** Recreates a durable single-track job from a failed placeholder after process restart. */
+    public static void retryPersistedTrack(Context context, Track track) {
+        if (track.sourceUrl != null && !track.sourceUrl.isEmpty()) {
+            enqueue(context, track.sourceUrl, track.playlistName, false);
+        }
+    }
+
     /**
      * Восстановить незавершённые загрузки после краша/перезагрузки/обновления.
      * Уже скачанные треки плейлистов пропускаются, так что докачка продолжается
@@ -166,6 +199,10 @@ public class DownloadService extends Service {
     private volatile DownloadJob activeJob;
 
     private NotificationManager notificationManager;
+    private ConnectivityManager connectivityManager;
+    @Nullable
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private volatile boolean networkAvailable = true;
     private TrackDao dao;
     private long lastPublishMs;
 
@@ -173,7 +210,38 @@ public class DownloadService extends Service {
     public void onCreate() {
         super.onCreate();
         notificationManager = getSystemService(NotificationManager.class);
+        connectivityManager = getSystemService(ConnectivityManager.class);
         dao = VibyDatabase.get(this).trackDao();
+        networkAvailable = hasUsableNetwork();
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                refreshNetworkState();
+            }
+
+            @Override
+            public void onLost(Network network) {
+                refreshNetworkState();
+            }
+
+            @Override
+            public void onCapabilitiesChanged(Network network,
+                                              NetworkCapabilities capabilities) {
+                refreshNetworkState();
+            }
+        };
+        connectivityManager.registerDefaultNetworkCallback(networkCallback);
+    }
+
+    @Override
+    public void onDestroy() {
+        if (connectivityManager != null && networkCallback != null) {
+            try {
+                connectivityManager.unregisterNetworkCallback(networkCallback);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        super.onDestroy();
     }
 
     @Override
@@ -204,6 +272,17 @@ public class DownloadService extends Service {
                 prioritizeTrackInternal(intent.getStringExtra(EXTRA_PLAYLIST),
                         intent.getStringExtra(EXTRA_TRACK_ID));
                 break;
+            case ACTION_RETRY_TRACK:
+                retryFailedInternal(intent.getLongExtra(EXTRA_JOB_ID, -1L),
+                        intent.getStringExtra(EXTRA_TRACK_ID), false);
+                break;
+            case ACTION_RETRY_FAILED:
+                retryFailedInternal(intent.getLongExtra(EXTRA_JOB_ID, -1L), null, true);
+                break;
+            case ACTION_REMOVE_FAILED:
+                removeFailedInternal(intent.getLongExtra(EXTRA_JOB_ID, -1L),
+                        intent.getStringExtra(EXTRA_TRACK_ID));
+                break;
             case ACTION_ENQUEUE:
                 String url = intent.getStringExtra(EXTRA_URL);
                 String playlist = intent.getStringExtra(EXTRA_PLAYLIST);
@@ -214,31 +293,32 @@ public class DownloadService extends Service {
                 String restoredTrackOrder = intent.getStringExtra(EXTRA_TRACK_ORDER);
                 if (url != null && !url.trim().isEmpty()
                         && !hasActiveJob(url.trim(), playlist)) {
-                    DownloadJob job = new DownloadJob(url.trim(), playlist, isPlaylist);
-                    job.pendingId = pendingId;
+                    DownloadJob job;
                     synchronized (jobs) {
-                        job.queuePosition = restoredPosition >= 0
-                                ? restoredPosition : nextQueuePositionLocked();
-                        job.pauseRequested = restoredPaused;
-                        job.trackOrderJson = restoredTrackOrder;
-                        job.status = restoredPaused
-                                ? DownloadJob.Status.PAUSED : DownloadJob.Status.QUEUED;
+                        job = DownloadJobFactory.create(
+                                url, playlist, isPlaylist, pendingId,
+                                restoredPosition, restoredPaused, restoredTrackOrder,
+                                nextQueuePositionLocked());
                         jobs.add(job);
                         sortJobsLocked();
                     }
-                    if (pendingId == 0) {
-                        persistPending(job);
-                    }
-                    pendingCount.incrementAndGet();
-                    publish(true);
-                    startForeground(NOTIF_PROGRESS_ID, buildProgressNotification(job));
-                    scheduleDispatcher();
+                    enqueuePreparedJob(job, pendingId == 0);
                 }
                 break;
             default:
                 break;
         }
         return START_NOT_STICKY;
+    }
+
+    private void enqueuePreparedJob(DownloadJob job, boolean persist) {
+        if (persist) {
+            persistPending(job);
+        }
+        pendingCount.incrementAndGet();
+        publish(true);
+        startForeground(NOTIF_PROGRESS_ID, buildProgressNotification(job));
+        scheduleDispatcher();
     }
 
     @Nullable
@@ -302,6 +382,7 @@ public class DownloadService extends Service {
                 runSingleJob(job);
             }
             terminal = job.status == DownloadJob.Status.DONE
+                    || job.status == DownloadJob.Status.COMPLETED_WITH_ERRORS
                     || job.status == DownloadJob.Status.CANCELED;
         } catch (Exception e) {
             if (job.cancelRequested) {
@@ -317,7 +398,9 @@ public class DownloadService extends Service {
             } else {
                 Log.e(TAG, "job failed: " + job.url, e);
                 job.status = DownloadJob.Status.FAILED;
-                job.error = shortError(e);
+                job.error = e instanceof ClassifiedDownloadException
+                        ? failureMessage(((ClassifiedDownloadException) e).failure.code)
+                        : shortError(e);
                 terminal = true;
             }
         } finally {
@@ -341,6 +424,15 @@ public class DownloadService extends Service {
     }
 
     private static final class JobYieldException extends Exception {
+    }
+
+    private static final class ClassifiedDownloadException extends Exception {
+        final DownloadFailure failure;
+
+        ClassifiedDownloadException(DownloadFailure failure, Throwable cause) {
+            super(cause);
+            this.failure = failure;
+        }
     }
 
     /** Куки залогиненного аккаунта — снимают возрастные ограничения. */
@@ -451,7 +543,7 @@ public class DownloadService extends Service {
 
         YoutubeDLRequest infoRequest = new YoutubeDLRequest(job.url);
         applyCookies(infoRequest);
-        VideoInfo info = YoutubeDL.getInstance().getInfo(infoRequest);
+        VideoInfo info = fetchVideoInfo(job, infoRequest);
         String videoId = info.getId();
         String title = info.getTitle() != null ? info.getTitle() : job.url;
         job.title = title;
@@ -468,8 +560,20 @@ public class DownloadService extends Service {
         }
 
         long durationMs = info.getDuration() * 1000L;
-        downloadTrack(job, job.url, videoId, title, info.getUploader(), durationMs,
-                playlist, null);
+        DownloadJob.TrackItem item = findTrack(job, videoId);
+        if (item == null) {
+            item = new DownloadJob.TrackItem(videoId, title,
+                    info.getUploader(), durationMs, 0);
+            job.tracks.add(item);
+        }
+        ensurePlaceholder(item, playlist, job.url);
+        job.activeTrack = item;
+        try {
+            downloadTrackWithRetries(job, item, job.url, videoId, title,
+                    info.getUploader(), durationMs, playlist, null);
+        } finally {
+            job.activeTrack = null;
+        }
         job.status = job.cancelRequested
                 ? DownloadJob.Status.CANCELED : DownloadJob.Status.DONE;
     }
@@ -483,18 +587,16 @@ public class DownloadService extends Service {
         infoRequest.addOption("--flat-playlist");
         infoRequest.addOption("--dump-single-json");
         infoRequest.addOption("--no-warnings");
+        // Avoid yt-dlp reporting a missing webpage as an authentication failure.
+        // Cookies are still supplied below and remain effective for private playlists.
+        infoRequest.addOption("--extractor-args", "youtubetab:skip=authcheck");
         if (com.example.viby.util.YoutubeUrlParser.isRadioMixUrl(job.url)) {
             infoRequest.addOption("--playlist-end", String.valueOf(TRACK_RADIO_LIMIT));
         }
         applyCookies(infoRequest);
         String processId = "job-" + job.id + "-info";
         activeProcessId = processId;
-        YoutubeDLResponse response;
-        try {
-            response = YoutubeDL.getInstance().execute(infoRequest, processId, null);
-        } finally {
-            activeProcessId = null;
-        }
+        YoutubeDLResponse response = fetchPlaylistInfo(job, infoRequest, processId);
 
         JSONObject root = new JSONObject(response.getOut());
         String playlistTitle = root.optString("title", "Playlist");
@@ -564,14 +666,15 @@ public class DownloadService extends Service {
                         item.youtubePosition, "https://www.youtube.com/watch?v="
                                 + item.videoId)) {
                     item.progress = 100;
-                    item.status = DownloadJob.TrackItem.Status.DONE;
+                    item.status = DownloadJob.TrackItem.Status.DOWNLOADED;
                     continue;
                 }
                 String videoUrl = "https://www.youtube.com/watch?v=" + item.videoId;
-                downloadTrack(job, videoUrl, item.videoId, item.title, item.uploader,
-                        item.durationMs, playlist, item.youtubePosition);
+                downloadTrackWithRetries(job, item, videoUrl, item.videoId,
+                        item.title, item.uploader, item.durationMs, playlist,
+                        item.youtubePosition);
                 item.progress = 100;
-                item.status = DownloadJob.TrackItem.Status.DONE;
+                item.status = DownloadJob.TrackItem.Status.DOWNLOADED;
             } catch (Exception e) {
                 if (job.cancelRequested) {
                     item.status = DownloadJob.TrackItem.Status.WAITING;
@@ -582,8 +685,16 @@ public class DownloadService extends Service {
                     item.status = DownloadJob.TrackItem.Status.WAITING;
                     throw e;
                 }
-                item.status = DownloadJob.TrackItem.Status.FAILED;
-                Log.w(TAG, "playlist entry failed: " + item.title, e);
+                if (item.status != DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                        && item.status != DownloadJob.TrackItem.Status.FAILED_PERMANENT) {
+                    DownloadFailure failure = e instanceof ClassifiedDownloadException
+                            ? ((ClassifiedDownloadException) e).failure
+                            : DownloadFailure.classify(e);
+                    setFailedState(item, failure);
+                    persistTrackState(playlist, item);
+                }
+                Log.w(TAG, "playlist entry failed [" + item.failureCode + "]: "
+                        + item.title, e);
                 job.failedCount++;
                 job.failedTitles.add(item.title);
             } finally {
@@ -594,7 +705,10 @@ public class DownloadService extends Service {
         }
         applyYoutubeOrder(playlist, youtubePositions);
         job.status = job.cancelRequested
-                ? DownloadJob.Status.CANCELED : DownloadJob.Status.DONE;
+                ? DownloadJob.Status.CANCELED
+                : job.failedCount > 0
+                ? DownloadJob.Status.COMPLETED_WITH_ERRORS
+                : DownloadJob.Status.DONE;
     }
 
     private void prepareTrackQueue(DownloadJob job, JSONArray entries) throws Exception {
@@ -650,8 +764,9 @@ public class DownloadService extends Service {
         int count = 0;
         synchronized (job.tracks) {
             for (DownloadJob.TrackItem item : job.tracks) {
-                if (item.status == DownloadJob.TrackItem.Status.DONE
-                        || item.status == DownloadJob.TrackItem.Status.FAILED) {
+                if (item.status == DownloadJob.TrackItem.Status.DOWNLOADED
+                        || item.status == DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                        || item.status == DownloadJob.TrackItem.Status.FAILED_PERMANENT) {
                     count++;
                 }
             }
@@ -665,7 +780,7 @@ public class DownloadService extends Service {
                 String sourceUrl = "https://www.youtube.com/watch?v=" + item.videoId;
                 if (reuseDownloadedTrack(item.videoId, item.title, item.uploader,
                         item.durationMs, playlist, item.youtubePosition, sourceUrl)) {
-                    item.status = DownloadJob.TrackItem.Status.DONE;
+                    item.status = DownloadJob.TrackItem.Status.DOWNLOADED;
                     continue;
                 }
                 Track existing = dao.getByVideoIdSync(playlist, item.videoId);
@@ -679,6 +794,15 @@ public class DownloadService extends Service {
                     existing.sourceUrl = sourceUrl;
                     existing.downloaded = false;
                     existing.filePath = "";
+                    boolean stillFailed = item.status
+                            == DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                            || item.status == DownloadJob.TrackItem.Status.FAILED_PERMANENT;
+                    if (!stillFailed) {
+                        existing.downloadState = Track.DOWNLOAD_WAITING;
+                        existing.downloadErrorCode = null;
+                        existing.downloadErrorMessage = null;
+                        existing.downloadProgress = 0;
+                    }
                     dao.update(existing);
                     continue;
                 }
@@ -695,8 +819,134 @@ public class DownloadService extends Service {
                 placeholder.createdAt = System.currentTimeMillis();
                 placeholder.downloaded = false;
                 placeholder.sourceUrl = sourceUrl;
+                placeholder.downloadState = Track.DOWNLOAD_WAITING;
                 dao.insert(placeholder);
             }
+        }
+    }
+
+    private void ensurePlaceholder(DownloadJob.TrackItem item, String playlist,
+                                   String sourceUrl) {
+        Track existing = dao.getByVideoIdSync(playlist, item.videoId);
+        if (existing == null) {
+            existing = new Track();
+            existing.videoId = item.videoId;
+            existing.playlistName = playlist;
+            existing.position = dao.nextPosition(playlist);
+            existing.createdAt = System.currentTimeMillis();
+        }
+        existing.title = item.title;
+        existing.uploader = item.uploader;
+        existing.durationMs = item.durationMs;
+        existing.thumbnailUrl = item.videoId != null && !item.videoId.isEmpty()
+                ? "https://i.ytimg.com/vi/" + item.videoId + "/hqdefault.jpg" : null;
+        existing.sourceUrl = sourceUrl;
+        existing.filePath = "";
+        existing.downloaded = false;
+        existing.downloadState = Track.DOWNLOAD_WAITING;
+        existing.downloadErrorCode = null;
+        existing.downloadErrorMessage = null;
+        existing.downloadProgress = 0;
+        if (existing.id == 0) {
+            dao.insert(existing);
+        } else {
+            dao.update(existing);
+        }
+    }
+
+    private void persistTrackState(String playlist, DownloadJob.TrackItem item) {
+        Track track = dao.getByVideoIdSync(playlist, item.videoId);
+        if (track == null || track.downloaded) {
+            return;
+        }
+        switch (item.status) {
+            case DOWNLOADING:
+                track.downloadState = Track.DOWNLOAD_DOWNLOADING;
+                break;
+            case RETRY_SCHEDULED:
+                track.downloadState = Track.DOWNLOAD_RETRY_SCHEDULED;
+                break;
+            case FAILED_TEMPORARY:
+                track.downloadState = Track.DOWNLOAD_FAILED_TEMPORARY;
+                break;
+            case FAILED_PERMANENT:
+                track.downloadState = Track.DOWNLOAD_FAILED_PERMANENT;
+                break;
+            case DOWNLOADED:
+                track.downloadState = Track.DOWNLOAD_DOWNLOADED;
+                break;
+            default:
+                track.downloadState = Track.DOWNLOAD_WAITING;
+                break;
+        }
+        track.downloadErrorCode = item.failureCode;
+        track.downloadErrorMessage = item.failureMessage;
+        track.downloadAttemptCount = item.attemptCount;
+        track.downloadLastAttemptAt = item.lastAttemptAt;
+        track.downloadFormat = item.selectedFormat;
+        track.downloadRequiresAuthorization = item.requiresAuthorization;
+        track.downloadProgress = item.progress;
+        dao.update(track);
+    }
+
+    private void setFailedState(DownloadJob.TrackItem item, DownloadFailure failure) {
+        item.status = failure.retryable
+                ? DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                : DownloadJob.TrackItem.Status.FAILED_PERMANENT;
+        item.failureCode = failure.code.name();
+        item.failureMessage = failureMessage(failure.code);
+        item.requiresAuthorization = failure.requiresAuthorization;
+        item.nextRetryAt = 0L;
+    }
+
+    private void waitForRetry(DownloadJob job, long delayMs) throws Exception {
+        long deadline = System.currentTimeMillis() + delayMs;
+        while (System.currentTimeMillis() < deadline) {
+            throwIfPaused(job);
+            if (job.cancelRequested) {
+                throw new InterruptedException("canceled");
+            }
+            long remaining = deadline - System.currentTimeMillis();
+            try {
+                Thread.sleep(Math.min(250L, Math.max(1L, remaining)));
+            } catch (InterruptedException interrupted) {
+                if (job.cancelRequested) {
+                    throw interrupted;
+                }
+            }
+        }
+    }
+
+    private String failureMessage(DownloadFailure.Code code) {
+        switch (code) {
+            case VIDEO_REMOVED:
+                return getString(R.string.download_error_video_removed);
+            case VIDEO_UNAVAILABLE:
+                return getString(R.string.download_error_video_unavailable);
+            case VIDEO_PRIVATE:
+                return getString(R.string.download_error_video_private);
+            case REGION_BLOCKED:
+                return getString(R.string.download_error_region_blocked);
+            case AGE_RESTRICTED:
+                return getString(R.string.download_error_age_restricted);
+            case EXTRACTOR_OUTDATED:
+                return getString(R.string.download_error_extractor_outdated);
+            case AUTH_REQUIRED:
+                return getString(R.string.download_error_auth_required);
+            case RATE_LIMITED:
+                return getString(R.string.download_error_rate_limited);
+            case NETWORK:
+                return getString(R.string.download_error_network);
+            case FFMPEG:
+                return getString(R.string.download_error_ffmpeg);
+            case STORAGE_FULL:
+                return getString(R.string.download_error_storage_full);
+            case FILE_SYSTEM:
+                return getString(R.string.download_error_file_system);
+            case FORMAT_UNAVAILABLE:
+                return getString(R.string.download_error_format_unavailable);
+            default:
+                return getString(R.string.download_error_unknown);
         }
     }
 
@@ -744,6 +994,11 @@ public class DownloadService extends Service {
         target.youtubePosition = youtubePosition;
         target.downloaded = true;
         target.sourceUrl = sourceUrl;
+        target.downloadState = Track.DOWNLOAD_DOWNLOADED;
+        target.downloadErrorCode = null;
+        target.downloadErrorMessage = null;
+        target.downloadProgress = 100;
+        target.downloadRequiresAuthorization = false;
         if (updateExisting) {
             dao.update(target);
         } else {
@@ -763,10 +1018,73 @@ public class DownloadService extends Service {
 
     // ------------------------------------------------------------- download
 
+    private void downloadTrackWithRetries(DownloadJob job, DownloadJob.TrackItem item,
+                                          String videoUrl, String videoId,
+                                          String title, @Nullable String uploader,
+                                          long durationMs, String playlist,
+                                          @Nullable Integer youtubePosition) throws Exception {
+        int transientAttempts = 0;
+        int networkAttempts = 0;
+        while (true) {
+            throwIfPaused(job);
+            item.status = DownloadJob.TrackItem.Status.DOWNLOADING;
+            item.attemptCount++;
+            item.lastAttemptAt = System.currentTimeMillis();
+            item.nextRetryAt = 0L;
+            item.failureCode = null;
+            item.failureMessage = null;
+            item.requiresAuthorization = false;
+            persistTrackState(playlist, item);
+            publish(true);
+            try {
+                downloadTrack(job, videoUrl, videoId, title, uploader, durationMs,
+                        playlist, youtubePosition, item);
+                clearNetworkRetry(job);
+                item.status = DownloadJob.TrackItem.Status.DOWNLOADED;
+                item.progress = 100;
+                persistTrackState(playlist, item);
+                return;
+            } catch (Exception error) {
+                if (job.cancelRequested || job.pauseRequested || job.pauseInterrupted
+                        || job.yieldInterrupted || error instanceof JobPausedException
+                        || error instanceof JobYieldException) {
+                    throw error;
+                }
+                DownloadFailure failure = error instanceof ClassifiedDownloadException
+                        ? ((ClassifiedDownloadException) error).failure
+                        : DownloadFailure.classify(error);
+                item.failureCode = failure.code.name();
+                item.failureMessage = failureMessage(failure.code);
+                item.requiresAuthorization = failure.requiresAuthorization;
+                if (failure.code == DownloadFailure.Code.NETWORK) {
+                    item.status = DownloadJob.TrackItem.Status.RETRY_SCHEDULED;
+                    item.nextRetryAt = System.currentTimeMillis()
+                            + DownloadRetryPolicy.delayAfterAttempt(++networkAttempts);
+                    persistTrackState(playlist, item);
+                    waitForNetworkRetry(job, networkAttempts);
+                    continue;
+                }
+                transientAttempts++;
+                if (!DownloadRetryPolicy.shouldRetry(failure, transientAttempts)) {
+                    setFailedState(item, failure);
+                    persistTrackState(playlist, item);
+                    throw new ClassifiedDownloadException(failure, error);
+                }
+                long delayMs = DownloadRetryPolicy.delayAfterAttempt(transientAttempts);
+                item.status = DownloadJob.TrackItem.Status.RETRY_SCHEDULED;
+                item.nextRetryAt = System.currentTimeMillis() + delayMs;
+                persistTrackState(playlist, item);
+                publish(true);
+                waitForRetry(job, delayMs);
+            }
+        }
+    }
+
     private void downloadTrack(DownloadJob job, String videoUrl, String videoId,
                                String title, @Nullable String uploader,
                                long durationMs, String playlist,
-                               @Nullable Integer youtubePosition) throws Exception {
+                               @Nullable Integer youtubePosition,
+                               DownloadJob.TrackItem item) throws Exception {
         job.status = DownloadJob.Status.DOWNLOADING;
         job.currentTrackTitle = title;
         job.progress = 0;
@@ -782,11 +1100,16 @@ public class DownloadService extends Service {
 
         File resultFile;
         try {
+            item.selectedFormat = "mp3";
             resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName, "mp3", null);
         } catch (Exception e) {
             if (job.cancelRequested || job.pauseRequested || job.pauseInterrupted
                     || job.yieldInterrupted || e instanceof JobPausedException
                     || e instanceof JobYieldException) {
+                throw e;
+            }
+            DownloadFailure firstFailure = DownloadFailure.classify(e);
+            if (!shouldTryAlternatePlayerClients(firstFailure)) {
                 throw e;
             }
             // Многие «Video unavailable» — это блокировка дефолтного клиента yt-dlp,
@@ -797,6 +1120,7 @@ public class DownloadService extends Service {
             }
             Log.w(TAG, "retrying with alternate player clients: " + title, e);
             try {
+                item.selectedFormat = "mp3";
                 resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName,
                         "mp3", ALT_PLAYER_CLIENTS);
             } catch (Exception e2) {
@@ -807,6 +1131,7 @@ public class DownloadService extends Service {
                 }
                 // последний шанс: другой контейнер + альтернативные клиенты
                 Log.w(TAG, "mp3 failed, retrying as m4a: " + title, e2);
+                item.selectedFormat = "m4a";
                 resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName,
                         "m4a", ALT_PLAYER_CLIENTS);
             }
@@ -831,11 +1156,25 @@ public class DownloadService extends Service {
         track.youtubePosition = youtubePosition;
         track.downloaded = true;
         track.sourceUrl = videoUrl;
+        track.downloadState = Track.DOWNLOAD_DOWNLOADED;
+        track.downloadErrorCode = null;
+        track.downloadErrorMessage = null;
+        track.downloadAttemptCount = item.attemptCount;
+        track.downloadLastAttemptAt = item.lastAttemptAt;
+        track.downloadFormat = item.selectedFormat;
+        track.downloadRequiresAuthorization = false;
+        track.downloadProgress = 100;
         if (updateExisting) {
             dao.update(track);
         } else {
             dao.insert(track);
         }
+    }
+
+    private static boolean shouldTryAlternatePlayerClients(DownloadFailure failure) {
+        return failure.code == DownloadFailure.Code.UNKNOWN
+                || failure.code == DownloadFailure.Code.VIDEO_UNAVAILABLE
+                || failure.code == DownloadFailure.Code.FORMAT_UNAVAILABLE;
     }
 
     /** Пауза = убить процесс yt-dlp; при возобновлении он докачивает .part-файл. */
@@ -844,18 +1183,122 @@ public class DownloadService extends Service {
                                         @Nullable String playerClients) throws Exception {
         while (true) {
             waitWhilePaused(job);
+            waitForNetwork(job);
             if (job.cancelRequested) {
                 throw new InterruptedException("canceled");
             }
+            job.networkInterrupted = false;
             try {
-                return executeDownload(job, videoUrl, dir, baseName, format, playerClients);
+                File result = executeDownload(
+                        job, videoUrl, dir, baseName, format, playerClients);
+                job.networkInterrupted = false;
+                return result;
             } catch (Exception e) {
                 if (job.pauseRequested && !job.cancelRequested) {
                     continue; // процесс убит паузой — подождём и продолжим
                 }
+                if (!job.cancelRequested
+                        && (job.networkInterrupted || !networkAvailable)) {
+                    waitForNetwork(job);
+                    continue;
+                }
                 throw e;
             }
         }
+    }
+
+    private VideoInfo fetchVideoInfo(DownloadJob job, YoutubeDLRequest request)
+            throws Exception {
+        int attempt = 0;
+        while (true) {
+            waitForNetwork(job);
+            throwIfPaused(job);
+            job.networkInterrupted = false;
+            try {
+                VideoInfo info = YoutubeDL.getInstance().getInfo(request);
+                job.networkInterrupted = false;
+                clearNetworkRetry(job);
+                return info;
+            } catch (Exception error) {
+                if (job.cancelRequested || job.pauseRequested || job.pauseInterrupted
+                        || job.yieldInterrupted || error instanceof JobPausedException
+                        || error instanceof JobYieldException) {
+                    throw error;
+                }
+                DownloadFailure failure = DownloadFailure.classify(error);
+                boolean networkFailure = job.networkInterrupted || !networkAvailable
+                        || failure.code == DownloadFailure.Code.NETWORK;
+                if (!networkFailure) {
+                    throw new ClassifiedDownloadException(failure, error);
+                }
+                waitForNetworkRetry(job, ++attempt);
+            }
+        }
+    }
+
+    private YoutubeDLResponse fetchPlaylistInfo(DownloadJob job,
+                                                 YoutubeDLRequest request,
+                                                 String processId) throws Exception {
+        int attempt = 0;
+        while (true) {
+            waitForNetwork(job);
+            throwIfPaused(job);
+            job.networkInterrupted = false;
+            activeProcessId = processId;
+            try {
+                YoutubeDLResponse response = YoutubeDL.getInstance()
+                        .execute(request, processId, null);
+                job.networkInterrupted = false;
+                clearNetworkRetry(job);
+                return response;
+            } catch (Exception error) {
+                if (job.cancelRequested || job.pauseRequested || job.pauseInterrupted
+                        || job.yieldInterrupted || error instanceof JobPausedException
+                        || error instanceof JobYieldException) {
+                    throw error;
+                }
+                DownloadFailure failure = DownloadFailure.classify(error);
+                boolean networkFailure = job.networkInterrupted || !networkAvailable
+                        || failure.code == DownloadFailure.Code.NETWORK;
+                if (!networkFailure) {
+                    throw new ClassifiedDownloadException(failure, error);
+                }
+                waitForNetworkRetry(job, ++attempt);
+            } finally {
+                activeProcessId = null;
+            }
+        }
+    }
+
+    private void waitForNetworkRetry(DownloadJob job, int attempt)
+            throws Exception {
+        job.networkRetrying = true;
+        publish(true);
+        updateProgressNotification(job);
+        long delayMs = DownloadRetryPolicy.delayAfterAttempt(attempt);
+        long deadline = System.currentTimeMillis() + delayMs;
+        while (System.currentTimeMillis() < deadline) {
+            throwIfPaused(job);
+            if (job.cancelRequested) {
+                throw new InterruptedException("canceled");
+            }
+            if (!networkAvailable) {
+                waitForNetwork(job);
+            }
+            long remaining = deadline - System.currentTimeMillis();
+            if (remaining > 0L) {
+                Thread.sleep(Math.min(250L, remaining));
+            }
+        }
+    }
+
+    private void clearNetworkRetry(DownloadJob job) {
+        if (!job.networkRetrying) {
+            return;
+        }
+        job.networkRetrying = false;
+        publish(true);
+        updateProgressNotification(job);
     }
 
     private void waitWhilePaused(DownloadJob job)
@@ -908,10 +1351,18 @@ public class DownloadService extends Service {
         try {
             YoutubeDL.getInstance().execute(request, processId,
                     (progress, etaSeconds, line) -> {
-                        job.progress = Math.max(0, Math.min(100, Math.round(progress)));
+                        job.progress = DownloadProgressParser.resolve(
+                                job.progress, progress, line);
                         DownloadJob.TrackItem activeTrack = job.activeTrack;
                         if (activeTrack != null) {
                             activeTrack.progress = job.progress;
+                            if (job.playlistName != null
+                                    && (activeTrack.progress == 100
+                                    || activeTrack.progress
+                                    >= activeTrack.persistedProgress + 5)) {
+                                activeTrack.persistedProgress = activeTrack.progress;
+                                persistTrackState(job.playlistName, activeTrack);
+                            }
                         }
                         parseSizes(job, line);
                         publish(false);
@@ -960,6 +1411,57 @@ public class DownloadService extends Service {
                 job.totalBytes = (long) value;
                 job.downloadedBytes = (long) (value * job.progress / 100.0);
             } catch (NumberFormatException ignored) {
+            }
+        }
+    }
+
+    private void waitForNetwork(DownloadJob job)
+            throws InterruptedException, JobPausedException, JobYieldException {
+        while (!networkAvailable) {
+            throwIfPaused(job);
+            if (job.cancelRequested) {
+                throw new InterruptedException("canceled");
+            }
+            if (!job.waitingForNetwork) {
+                job.waitingForNetwork = true;
+                publish(true);
+                updateProgressNotification(job);
+            }
+            Thread.sleep(250L);
+        }
+        if (job.waitingForNetwork) {
+            job.waitingForNetwork = false;
+            publish(true);
+            updateProgressNotification(job);
+        }
+    }
+
+    private boolean hasUsableNetwork() {
+        if (connectivityManager == null) {
+            return true;
+        }
+        Network active = connectivityManager.getActiveNetwork();
+        NetworkCapabilities capabilities = active != null
+                ? connectivityManager.getNetworkCapabilities(active) : null;
+        return capabilities != null
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+    }
+
+    private void refreshNetworkState() {
+        boolean available = hasUsableNetwork();
+        boolean changed = networkAvailable != available;
+        networkAvailable = available;
+        DownloadJob job = activeJob;
+        if (job != null && job.isActive()) {
+            if (!available) {
+                job.networkInterrupted = true;
+            }
+            boolean waitingChanged = job.waitingForNetwork == available;
+            job.waitingForNetwork = !available;
+            if (changed || waitingChanged) {
+                publish(true);
+                updateProgressNotification(job);
             }
         }
     }
@@ -1015,6 +1517,110 @@ public class DownloadService extends Service {
         }
         persistQueueOrder();
         publish(true);
+    }
+
+    private void retryFailedInternal(long jobId, @Nullable String videoId,
+                                     boolean retryAll) {
+        DownloadJob job = findJob(jobId);
+        if (job == null || job.isActive()) {
+            return;
+        }
+        boolean changed = false;
+        synchronized (job.tracks) {
+            for (DownloadJob.TrackItem item : job.tracks) {
+                boolean failed = item.status == DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                        || item.status == DownloadJob.TrackItem.Status.FAILED_PERMANENT;
+                if (failed && (retryAll || item.videoId.equals(videoId))) {
+                    item.status = DownloadJob.TrackItem.Status.WAITING;
+                    item.progress = 0;
+                    item.nextRetryAt = 0L;
+                    changed = true;
+                }
+            }
+            rebuildFailureSummary(job);
+        }
+        if (!changed) {
+            return;
+        }
+        synchronized (jobs) {
+            job.queuePosition = nextQueuePositionLocked();
+            sortJobsLocked();
+        }
+        job.error = null;
+        job.cancelRequested = false;
+        job.pauseRequested = false;
+        job.completionHandled = false;
+        job.pendingId = 0L;
+        job.status = DownloadJob.Status.QUEUED;
+        persistPending(job);
+        pendingCount.incrementAndGet();
+        publish(true);
+        startForeground(NOTIF_PROGRESS_ID, buildProgressNotification(job));
+        scheduleDispatcher();
+    }
+
+    private void removeFailedInternal(long jobId, @Nullable String videoId) {
+        if (videoId == null) {
+            return;
+        }
+        DownloadJob job = findJob(jobId);
+        if (job == null || job.isActive()) {
+            return;
+        }
+        boolean removed;
+        synchronized (job.tracks) {
+            removed = job.tracks.removeIf(item -> videoId.equals(item.videoId)
+                    && (item.status == DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                    || item.status == DownloadJob.TrackItem.Status.FAILED_PERMANENT));
+            rebuildFailureSummary(job);
+        }
+        if (!removed) {
+            return;
+        }
+        if (job.failedCount == 0 && job.status == DownloadJob.Status.COMPLETED_WITH_ERRORS) {
+            job.status = DownloadJob.Status.DONE;
+        }
+        if (job.playlistName != null) {
+            String playlist = job.playlistName;
+            VibyDatabase.dbExecutor.execute(() -> dao.deletePending(playlist, videoId));
+        }
+        publish(true);
+    }
+
+    @Nullable
+    private DownloadJob findJob(long jobId) {
+        synchronized (jobs) {
+            for (DownloadJob job : jobs) {
+                if (job.id == jobId) {
+                    return job;
+                }
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private DownloadJob.TrackItem findTrack(DownloadJob job, String videoId) {
+        synchronized (job.tracks) {
+            for (DownloadJob.TrackItem item : job.tracks) {
+                if (videoId.equals(item.videoId)) {
+                    return item;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void rebuildFailureSummary(DownloadJob job) {
+        job.failedCount = 0;
+        job.failedTitles.clear();
+        for (DownloadJob.TrackItem item : job.tracks) {
+            if (item.status == DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                    || item.status == DownloadJob.TrackItem.Status.FAILED_PERMANENT) {
+                job.failedCount++;
+                job.failedTitles.add(item.title);
+            }
+        }
     }
 
     private void moveTrackInternal(long jobId, @Nullable String videoId,
@@ -1085,9 +1691,11 @@ public class DownloadService extends Service {
                 int firstWaiting = 0;
                 while (firstWaiting < targetJob.tracks.size()
                         && (targetJob.tracks.get(firstWaiting).status
-                        == DownloadJob.TrackItem.Status.DONE
+                        == DownloadJob.TrackItem.Status.DOWNLOADED
                         || targetJob.tracks.get(firstWaiting).status
-                        == DownloadJob.TrackItem.Status.FAILED)) {
+                        == DownloadJob.TrackItem.Status.FAILED_TEMPORARY
+                        || targetJob.tracks.get(firstWaiting).status
+                        == DownloadJob.TrackItem.Status.FAILED_PERMANENT)) {
                     firstWaiting++;
                 }
                 targetJob.tracks.add(firstWaiting, target);
@@ -1206,7 +1814,13 @@ public class DownloadService extends Service {
         String trackName = job.currentTrackTitle != null
                 ? job.currentTrackTitle : (job.title != null ? job.title : job.url);
         StringBuilder text = new StringBuilder();
+        if (job.waitingForNetwork || job.networkRetrying) {
+            text.append(getString(R.string.status_waiting_for_network));
+        }
         if (job.isPlaylist && job.totalCount > 0) {
+            if (text.length() > 0) {
+                text.append(" · ");
+            }
             text.append(getString(R.string.notif_download_playlist_progress,
                     job.currentIndex, job.totalCount));
         }
@@ -1251,7 +1865,7 @@ public class DownloadService extends Service {
         List<String> pendingVideoIds = new ArrayList<>();
         synchronized (job.tracks) {
             for (DownloadJob.TrackItem item : job.tracks) {
-                if (item.status != DownloadJob.TrackItem.Status.DONE) {
+                if (item.status != DownloadJob.TrackItem.Status.DOWNLOADED) {
                     pendingVideoIds.add(item.videoId);
                 }
             }
@@ -1290,6 +1904,7 @@ public class DownloadService extends Service {
         String text;
         switch (job.status) {
             case DONE:
+            case COMPLETED_WITH_ERRORS:
                 text = job.isPlaylist
                         ? getString(R.string.notif_download_summary,
                                 job.totalCount - job.failedCount, job.failedCount)

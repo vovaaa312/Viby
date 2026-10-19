@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Database(entities = {Track.class, PlaylistSource.class, PendingDownload.class},
-        version = 6, exportSchema = false)
+        version = 7, exportSchema = false)
 public abstract class VibyDatabase extends RoomDatabase {
 
     private static volatile VibyDatabase instance;
@@ -87,6 +87,27 @@ public abstract class VibyDatabase extends RoomDatabase {
         }
     };
 
+    private static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadState` TEXT NOT NULL "
+                    + "DEFAULT 'DOWNLOADED'");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadErrorCode` TEXT");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadErrorMessage` TEXT");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadAttemptCount` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadLastAttemptAt` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadFormat` TEXT");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadRequiresAuthorization` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `downloadProgress` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("UPDATE `tracks` SET `downloadState` = 'WAITING' "
+                    + "WHERE `downloaded` = 0");
+        }
+    };
+
     public static VibyDatabase get(Context context) {
         if (instance == null) {
             synchronized (VibyDatabase.class) {
@@ -96,7 +117,8 @@ public abstract class VibyDatabase extends RoomDatabase {
                                     VibyDatabase.class,
                                     "viby.db")
                             .addMigrations(MIGRATION_1_2, MIGRATION_2_3,
-                                    MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                                    MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                                    MIGRATION_6_7)
                             .build();
                 }
             }

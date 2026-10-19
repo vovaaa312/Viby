@@ -110,7 +110,8 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Hold
                 track.setVisibility(View.VISIBLE);
                 track.setMaxLines(1);
                 track.setText(job.currentTrackTitle);
-            } else if (job.status == DownloadJob.Status.DONE
+            } else if ((job.status == DownloadJob.Status.DONE
+                    || job.status == DownloadJob.Status.COMPLETED_WITH_ERRORS)
                     && !job.failedTitles.isEmpty()) {
                 // после завершения показываем, какие именно треки не скачались
                 StringBuilder failed = new StringBuilder(
@@ -174,7 +175,13 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Hold
                 case PAUSED:
                 case DOWNLOADING:
                     StringBuilder sb = new StringBuilder();
+                    if (job.waitingForNetwork || job.networkRetrying) {
+                        sb.append(context.getString(R.string.status_waiting_for_network));
+                    }
                     if (job.isPlaylist && job.totalCount > 0) {
+                        if (sb.length() > 0) {
+                            sb.append(" · ");
+                        }
                         sb.append(context.getString(
                                 R.string.notif_download_playlist_progress,
                                 job.currentIndex, job.totalCount));
@@ -196,11 +203,10 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Hold
                     }
                     return sb.toString();
                 case DONE:
-                    if (job.isPlaylist && job.failedCount > 0) {
-                        return context.getString(R.string.status_done_errors,
-                                job.failedCount);
-                    }
                     return context.getString(R.string.status_done, job.playlistName);
+                case COMPLETED_WITH_ERRORS:
+                    return context.getString(R.string.status_completed_with_errors,
+                            job.failedCount);
                 case FAILED:
                     return job.error != null ? job.error
                             : context.getString(R.string.status_failed);

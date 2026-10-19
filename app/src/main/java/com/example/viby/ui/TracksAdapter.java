@@ -109,7 +109,9 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
                 synchronized (job.tracks) {
                     for (DownloadJob.TrackItem item : job.tracks) {
                         if (item.status == DownloadJob.TrackItem.Status.WAITING
-                                || item.status == DownloadJob.TrackItem.Status.DOWNLOADING) {
+                                || item.status == DownloadJob.TrackItem.Status.DOWNLOADING
+                                || item.status
+                                == DownloadJob.TrackItem.Status.RETRY_SCHEDULED) {
                             updated.put(progressKey(job.playlistName, item.videoId),
                                     item.progress);
                         }
@@ -228,8 +230,12 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             String artistText = track.uploader != null ? track.uploader
                     : itemView.getContext().getString(R.string.unknown_artist);
             if (!track.downloaded) {
-                artistText += " — "
-                        + itemView.getContext().getString(R.string.pending_track_online);
+                boolean failed = Track.DOWNLOAD_FAILED_TEMPORARY.equals(
+                        track.downloadState)
+                        || Track.DOWNLOAD_FAILED_PERMANENT.equals(track.downloadState);
+                artistText += " — " + (failed && track.downloadErrorMessage != null
+                        ? track.downloadErrorMessage
+                        : itemView.getContext().getString(R.string.pending_track_online));
             }
             artist.setText(artistText);
             duration.setText(Formats.duration(track.durationMs));
