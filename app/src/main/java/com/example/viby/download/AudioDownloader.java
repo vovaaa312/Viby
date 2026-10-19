@@ -22,10 +22,11 @@ final class AudioDownloader {
     }
 
     private final YoutubeExtractor youtubeExtractor;
+    private final MediaConverter mediaConverter;
     private final Backend backend;
 
     static AudioDownloader create(YoutubeExtractor youtubeExtractor) {
-        return new AudioDownloader(youtubeExtractor,
+        return new AudioDownloader(youtubeExtractor, new MediaConverter(),
                 (request, processId, listener) -> YoutubeDL.getInstance().execute(
                         request, processId, (progress, etaSeconds, line) -> {
                             listener.onProgress(progress, etaSeconds, line);
@@ -33,8 +34,10 @@ final class AudioDownloader {
                         }));
     }
 
-    AudioDownloader(YoutubeExtractor youtubeExtractor, Backend backend) {
+    AudioDownloader(YoutubeExtractor youtubeExtractor,
+                    MediaConverter mediaConverter, Backend backend) {
         this.youtubeExtractor = youtubeExtractor;
+        this.mediaConverter = mediaConverter;
         this.backend = backend;
     }
 
@@ -45,13 +48,9 @@ final class AudioDownloader {
                 baseName.replace("%", "%%") + ".%(ext)s").getAbsolutePath();
         YoutubeDLRequest request = new YoutubeDLRequest(videoUrl);
         request.addOption("--no-playlist");
-        request.addOption("-x");
-        request.addOption("--audio-format", format);
-        request.addOption("--audio-quality", "0");
-        request.addOption("--embed-thumbnail");
-        request.addOption("--embed-metadata");
         request.addOption("--no-mtime");
         request.addOption("-o", template);
+        mediaConverter.configure(request, format);
         if (playerClients != null) {
             request.addOption("--extractor-args",
                     "youtube:player_client=" + playerClients);
@@ -66,22 +65,6 @@ final class AudioDownloader {
         YoutubeDLRequest request = buildRequest(
                 videoUrl, directory, baseName, format, playerClients);
         backend.execute(request, processId, listener);
-        return findOutput(directory, baseName, format);
-    }
-
-    static File findOutput(File directory, String baseName, String format) {
-        File expected = new File(directory, baseName + "." + format);
-        if (expected.exists()) {
-            return expected;
-        }
-        File[] candidates = directory.listFiles((dir, name) -> {
-            int dot = name.lastIndexOf('.');
-            return dot > 0 && name.substring(0, dot).equals(baseName);
-        });
-        if (candidates != null && candidates.length > 0) {
-            return candidates[0];
-        }
-        throw new IllegalStateException(
-                "Файл не найден после загрузки: " + baseName);
+        return mediaConverter.findOutput(directory, baseName, format);
     }
 }

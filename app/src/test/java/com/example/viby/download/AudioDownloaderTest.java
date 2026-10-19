@@ -84,6 +84,6 @@ public class AudioDownloaderTest {
                         return null;
                     }
                 });
-        return new AudioDownloader(extractor, backend);
+        return new AudioDownloader(extractor, new MediaConverter(), backend);
     }
 }
