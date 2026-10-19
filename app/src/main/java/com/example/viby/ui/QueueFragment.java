@@ -611,7 +611,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.move_dialog_title)
                 .setItems(names, (dialog, which) -> {
-                    activity.moveTracksToPlaylist(selected, names[which]);
+                    activity.copyTracksToPlaylist(selected, names[which]);
                     exitSelection();
                 })
                 .setNeutralButton(R.string.new_playlist_hint, (dialog, which) -> {
@@ -624,7 +624,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                             .setPositiveButton(android.R.string.ok, (d2, w2) -> {
                                 String name = input.getText().toString().trim();
                                 if (!name.isEmpty()) {
-                                    activity.moveTracksToPlaylist(selected, name);
+                                    activity.copyTracksToPlaylist(selected, name);
                                     exitSelection();
                                 }
                             })

@@ -1016,49 +1016,15 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, R.string.added_to_queue, Toast.LENGTH_SHORT).show();
     }
 
-    /** Переместить треки в другой плейлист: файл переезжает в папку плейлиста. */
-    void moveTracksToPlaylist(List<Track> tracks, String targetPlaylist) {
+    /** Добавить треки в другой плейлист, сохранив исходные записи и общий медиафайл. */
+    void copyTracksToPlaylist(List<Track> tracks, String targetPlaylist) {
         String target = com.example.viby.util.StorageHelper.sanitize(targetPlaylist);
-        removeFromQueue(tracks);
         VibyDatabase.dbExecutor.execute(() -> {
             var dao = VibyDatabase.get(this).trackDao();
-            int moved = 0;
-            for (Track track : tracks) {
-                if (target.equals(track.playlistName)) {
-                    continue;
-                }
-                File src = new File(track.filePath);
-                File destDir = com.example.viby.util.StorageHelper.playlistDir(this, target);
-                File dest = new File(destDir, src.getName());
-                if (dest.exists()) {
-                    String name = src.getName();
-                    int dot = name.lastIndexOf('.');
-                    String base = dot > 0 ? name.substring(0, dot) : name;
-                    String ext = dot > 0 ? name.substring(dot) : "";
-                    dest = new File(destDir, base + " [" + track.id + "]" + ext);
-                }
-                boolean sharedFile = !track.filePath.isEmpty()
-                        && dao.countFileReferences(track.filePath) > 1;
-                if (src.exists()) {
-                    boolean transferred = sharedFile
-                            ? copyTrackFile(src, dest) : src.renameTo(dest);
-                    if (!transferred) {
-                        continue; // файл не скопирован/не переехал — запись не трогаем
-                    }
-                }
-                track.playlistName = target;
-                track.youtubePosition = null;
-                track.youtubePlaylistItemId = null;
-                if (src.exists() || dest.exists()) {
-                    track.filePath = dest.getAbsolutePath();
-                }
-                track.position = dao.nextPosition(target);
-                dao.update(track);
-                moved++;
-            }
-            int total = moved;
+            int total = com.example.viby.data.PlaylistTrackCopier.create(dao)
+                    .copy(tracks, target);
             runOnUiThread(() -> Toast.makeText(this,
-                    getString(R.string.tracks_moved, total), Toast.LENGTH_SHORT).show());
+                    getString(R.string.tracks_copied, total), Toast.LENGTH_SHORT).show());
         });
     }
 
@@ -1152,23 +1118,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }, this::showYoutubeSyncError);
-    }
-
-    private static boolean copyTrackFile(File source, File destination) {
-        try (java.io.InputStream input = new java.io.FileInputStream(source);
-             java.io.OutputStream output = new java.io.FileOutputStream(destination)) {
-            byte[] buffer = new byte[64 * 1024];
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                output.write(buffer, 0, read);
-            }
-            return true;
-        } catch (java.io.IOException e) {
-            //noinspection ResultOfMethodCallIgnored
-            destination.delete();
-            android.util.Log.w("MainActivity", "shared track copy failed", e);
-            return false;
-        }
     }
 
     private static void deleteFileIfUnreferenced(

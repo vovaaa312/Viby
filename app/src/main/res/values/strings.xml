@@ -66,7 +66,7 @@
     <string name="select_all">Select all</string>
     <string name="move_dialog_title">Which playlist?</string>
     <string name="new_playlist_hint">Or a new playlist</string>
-    <string name="tracks_moved">Moved: %1$d</string>
+    <string name="tracks_copied">Added: %1$d</string>
     <string name="tracks_deleted">Deleted: %1$d</string>
     <string name="delete_selected_title">Delete selected tracks?</string>
     <string name="delete_selected_message">%1$d track(s) will be deleted from the device along with their files.</string>

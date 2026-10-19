@@ -47,6 +47,10 @@ public interface TrackDao {
     @Query("SELECT * FROM tracks WHERE playlistName = :playlist AND videoId = :videoId LIMIT 1")
     Track getByVideoIdSync(String playlist, String videoId);
 
+    @Query("SELECT * FROM tracks WHERE playlistName = :playlist AND filePath = :filePath " +
+            "LIMIT 1")
+    Track getByFilePathSync(String playlist, String filePath);
+
     @Query("SELECT * FROM tracks WHERE playlistName = :playlist AND videoId = :videoId "
             + "AND downloaded = 1 LIMIT 1")
     Track getDownloadedByVideoIdSync(String playlist, String videoId);
