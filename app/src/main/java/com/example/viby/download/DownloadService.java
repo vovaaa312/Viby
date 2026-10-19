@@ -204,6 +204,7 @@ public class DownloadService extends Service {
     private DownloadQueueRepository queueRepository;
     private YoutubeExtractor youtubeExtractor;
     private AudioDownloader audioDownloader;
+    private LibraryImporter libraryImporter;
     private long lastPublishMs;
 
     @Override
@@ -216,6 +217,7 @@ public class DownloadService extends Service {
         queueRepository = new DownloadQueueRepository(database.pendingDownloadDao());
         youtubeExtractor = YoutubeExtractor.create(this);
         audioDownloader = AudioDownloader.create(youtubeExtractor);
+        libraryImporter = LibraryImporter.create(dao);
         networkAvailable = hasUsableNetwork();
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
@@ -490,7 +492,7 @@ public class DownloadService extends Service {
         job.playlistName = playlist;
         publish(true);
 
-        if (reuseDownloadedTrack(videoId, title, info.getUploader(),
+        if (libraryImporter.reuseDownloadedTrack(videoId, title, info.getUploader(),
                 info.getDuration() * 1000L, playlist, null, job.url)) {
             job.status = DownloadJob.Status.DONE;
             return;
@@ -589,7 +591,7 @@ public class DownloadService extends Service {
             publish(true);
             updateProgressNotification(job);
             try {
-                if (item.videoId.isEmpty() || reuseDownloadedTrack(item.videoId,
+                if (item.videoId.isEmpty() || libraryImporter.reuseDownloadedTrack(item.videoId,
                         item.title, item.uploader, item.durationMs, playlist,
                         item.youtubePosition, "https://www.youtube.com/watch?v="
                                 + item.videoId)) {
@@ -706,7 +708,7 @@ public class DownloadService extends Service {
         synchronized (job.tracks) {
             for (DownloadJob.TrackItem item : job.tracks) {
                 String sourceUrl = "https://www.youtube.com/watch?v=" + item.videoId;
-                if (reuseDownloadedTrack(item.videoId, item.title, item.uploader,
+                if (libraryImporter.reuseDownloadedTrack(item.videoId, item.title, item.uploader,
                         item.durationMs, playlist, item.youtubePosition, sourceUrl)) {
                     item.status = DownloadJob.TrackItem.Status.DOWNLOADED;
                     continue;
@@ -878,63 +880,6 @@ public class DownloadService extends Service {
         }
     }
 
-    /**
-     * Links a track in the target playlist to an already downloaded file with the same
-     * YouTube video id. Playlist membership stays independent while the media bytes are shared.
-     */
-    private boolean reuseDownloadedTrack(@Nullable String videoId, String title,
-                                         @Nullable String uploader, long durationMs,
-                                         String playlist,
-                                         @Nullable Integer youtubePosition,
-                                         String sourceUrl) {
-        if (videoId == null || videoId.isEmpty()) {
-            return false;
-        }
-        Track reusable = null;
-        for (Track candidate : dao.getDownloadedByVideoIdGloballySync(videoId)) {
-            if (candidate.filePath != null && !candidate.filePath.isEmpty()
-                    && new File(candidate.filePath).isFile()) {
-                reusable = candidate;
-                break;
-            }
-        }
-        if (reusable == null) {
-            return false;
-        }
-
-        Track target = dao.getByVideoIdSync(playlist, videoId);
-        boolean updateExisting = target != null;
-        if (target == null) {
-            target = new Track();
-            target.position = dao.nextPosition(playlist);
-            target.createdAt = System.currentTimeMillis();
-        }
-        target.videoId = videoId;
-        target.title = title != null && !title.isEmpty() ? title : reusable.title;
-        target.uploader = uploader != null && !uploader.isEmpty()
-                ? uploader : reusable.uploader;
-        target.durationMs = durationMs > 0 ? durationMs : reusable.durationMs;
-        target.filePath = reusable.filePath;
-        target.playlistName = playlist;
-        target.thumbnailUrl = reusable.thumbnailUrl != null
-                ? reusable.thumbnailUrl
-                : "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg";
-        target.youtubePosition = youtubePosition;
-        target.downloaded = true;
-        target.sourceUrl = sourceUrl;
-        target.downloadState = Track.DOWNLOAD_DOWNLOADED;
-        target.downloadErrorCode = null;
-        target.downloadErrorMessage = null;
-        target.downloadProgress = 100;
-        target.downloadRequiresAuthorization = false;
-        if (updateExisting) {
-            dao.update(target);
-        } else {
-            dao.insert(target);
-        }
-        return true;
-    }
-
     private void applyYoutubeOrder(String playlist,
                                    java.util.Map<String, Integer> youtubePositions) {
         java.util.List<Track> tracks = dao.getPlaylistSync(playlist);
@@ -1065,38 +1010,9 @@ public class DownloadService extends Service {
             }
         }
 
-        Track track = videoId != null
-                ? dao.getByVideoIdSync(playlist, videoId) : null;
-        boolean updateExisting = track != null;
-        if (track == null) {
-            track = new Track();
-            track.position = dao.nextPosition(playlist);
-            track.createdAt = System.currentTimeMillis();
-        }
-        track.videoId = videoId;
-        track.title = title;
-        track.uploader = uploader;
-        track.durationMs = durationMs;
-        track.filePath = resultFile.getAbsolutePath();
-        track.playlistName = playlist;
-        track.thumbnailUrl = videoId != null && !videoId.isEmpty()
-                ? "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg" : null;
-        track.youtubePosition = youtubePosition;
-        track.downloaded = true;
-        track.sourceUrl = videoUrl;
-        track.downloadState = Track.DOWNLOAD_DOWNLOADED;
-        track.downloadErrorCode = null;
-        track.downloadErrorMessage = null;
-        track.downloadAttemptCount = item.attemptCount;
-        track.downloadLastAttemptAt = item.lastAttemptAt;
-        track.downloadFormat = item.selectedFormat;
-        track.downloadRequiresAuthorization = false;
-        track.downloadProgress = 100;
-        if (updateExisting) {
-            dao.update(track);
-        } else {
-            dao.insert(track);
-        }
+        libraryImporter.importDownloaded(videoId, title, uploader, durationMs,
+                playlist, youtubePosition, videoUrl, resultFile, item.attemptCount,
+                item.lastAttemptAt, item.selectedFormat);
     }
 
     private static boolean shouldTryAlternatePlayerClients(DownloadFailure failure) {
