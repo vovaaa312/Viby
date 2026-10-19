@@ -1,8 +1,5 @@
 package com.example.viby.download;
 
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -13,7 +10,6 @@ import android.os.IBinder;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
-import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -23,7 +19,6 @@ import com.example.viby.VibyApp;
 import com.example.viby.data.Track;
 import com.example.viby.data.TrackDao;
 import com.example.viby.data.VibyDatabase;
-import com.example.viby.util.Formats;
 import com.example.viby.util.StorageHelper;
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
@@ -75,7 +70,6 @@ public class DownloadService extends Service {
     private static final String EXTRA_PAUSED = "paused";
     private static final String EXTRA_TRACK_ORDER = "track_order";
 
-    private static final int NOTIF_PROGRESS_ID = 1;
     private static final int ENGINE_WAIT_SECONDS = 60;
     /** Клиенты для повторной попытки: tv/mweb обходят ложное «Video unavailable». */
     private static final String ALT_PLAYER_CLIENTS = "default,tv,mweb";
@@ -189,13 +183,12 @@ public class DownloadService extends Service {
     private final List<DownloadJob> jobs = new ArrayList<>();
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final AtomicInteger pendingCount = new AtomicInteger(0);
-    private final AtomicInteger notifIdSeq = new AtomicInteger(100);
     private boolean dispatcherRunning;
     private volatile String activeProcessId;
     @Nullable
     private volatile DownloadJob activeJob;
 
-    private NotificationManager notificationManager;
+    private DownloadNotificationController notificationController;
     private ConnectivityManager connectivityManager;
     @Nullable
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -210,7 +203,7 @@ public class DownloadService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        notificationManager = getSystemService(NotificationManager.class);
+        notificationController = new DownloadNotificationController(this);
         connectivityManager = getSystemService(ConnectivityManager.class);
         VibyDatabase database = VibyDatabase.get(this);
         dao = database.trackDao();
@@ -323,7 +316,7 @@ public class DownloadService extends Service {
         }
         pendingCount.incrementAndGet();
         publish(true);
-        startForeground(NOTIF_PROGRESS_ID, buildProgressNotification(job));
+        notificationController.startForeground(job);
         scheduleDispatcher();
     }
 
@@ -409,9 +402,10 @@ public class DownloadService extends Service {
                 if (job.status == DownloadJob.Status.CANCELED) {
                     cleanupPendingPlaceholders(job);
                 }
-                postResultNotification(job);
+                notificationController.postResult(job);
             }
-            refreshForegroundState();
+            notificationController.refreshForegroundState(
+                    pendingCount.get(), activeJob, jobs);
         }
     }
 
@@ -479,7 +473,7 @@ public class DownloadService extends Service {
     private void runSingleJob(DownloadJob job) throws Exception {
         job.status = DownloadJob.Status.PREPARING;
         publish(true);
-        updateProgressNotification(job);
+        notificationController.updateProgress(job);
 
         YoutubeDLRequest infoRequest = youtubeExtractor.videoInfoRequest(job.url);
         VideoInfo info = fetchVideoInfo(job, infoRequest);
@@ -520,7 +514,7 @@ public class DownloadService extends Service {
     private void runPlaylistJob(DownloadJob job) throws Exception {
         job.status = DownloadJob.Status.PREPARING;
         publish(true);
-        updateProgressNotification(job);
+        notificationController.updateProgress(job);
 
         YoutubeDLRequest infoRequest = youtubeExtractor.playlistInfoRequest(
                 job.url, com.example.viby.util.YoutubeUrlParser.isRadioMixUrl(job.url));
@@ -589,7 +583,7 @@ public class DownloadService extends Service {
             job.totalBytes = 0;
             job.currentTrackTitle = item.title;
             publish(true);
-            updateProgressNotification(job);
+            notificationController.updateProgress(job);
             try {
                 if (item.videoId.isEmpty() || libraryImporter.reuseDownloadedTrack(item.videoId,
                         item.title, item.uploader, item.durationMs, playlist,
@@ -1118,7 +1112,7 @@ public class DownloadService extends Service {
             throws Exception {
         job.networkRetrying = true;
         publish(true);
-        updateProgressNotification(job);
+        notificationController.updateProgress(job);
         long delayMs = DownloadRetryPolicy.delayAfterAttempt(attempt);
         long deadline = System.currentTimeMillis() + delayMs;
         while (System.currentTimeMillis() < deadline) {
@@ -1142,7 +1136,7 @@ public class DownloadService extends Service {
         }
         job.networkRetrying = false;
         publish(true);
-        updateProgressNotification(job);
+        notificationController.updateProgress(job);
     }
 
     private void waitWhilePaused(DownloadJob job)
@@ -1155,7 +1149,7 @@ public class DownloadService extends Service {
         }
         job.status = DownloadJob.Status.PAUSED;
         publish(true);
-        updateProgressNotification(job);
+        notificationController.updateProgress(job);
         throw new JobPausedException();
     }
 
@@ -1193,7 +1187,7 @@ public class DownloadService extends Service {
                         }
                         parseSizes(job, line);
                         publish(false);
-                        updateProgressNotification(job);
+                        notificationController.updateProgress(job);
                     });
         } finally {
             activeProcessId = null;
@@ -1236,14 +1230,14 @@ public class DownloadService extends Service {
             if (!job.waitingForNetwork) {
                 job.waitingForNetwork = true;
                 publish(true);
-                updateProgressNotification(job);
+                notificationController.updateProgress(job);
             }
             Thread.sleep(250L);
         }
         if (job.waitingForNetwork) {
             job.waitingForNetwork = false;
             publish(true);
-            updateProgressNotification(job);
+            notificationController.updateProgress(job);
         }
     }
 
@@ -1272,7 +1266,7 @@ public class DownloadService extends Service {
             job.waitingForNetwork = !available;
             if (changed || waitingChanged) {
                 publish(true);
-                updateProgressNotification(job);
+                notificationController.updateProgress(job);
             }
         }
     }
@@ -1293,7 +1287,8 @@ public class DownloadService extends Service {
             killActiveProcess();
         }
         publish(true);
-        refreshForegroundState();
+        notificationController.refreshForegroundState(
+                pendingCount.get(), activeJob, jobs);
         scheduleDispatcher();
     }
 
@@ -1314,7 +1309,8 @@ public class DownloadService extends Service {
             removePending(job);
         }
         publish(true);
-        refreshForegroundState();
+        notificationController.refreshForegroundState(
+                pendingCount.get(), activeJob, jobs);
         scheduleDispatcher();
     }
 
@@ -1366,7 +1362,7 @@ public class DownloadService extends Service {
         persistPending(job);
         pendingCount.incrementAndGet();
         publish(true);
-        startForeground(NOTIF_PROGRESS_ID, buildProgressNotification(job));
+        notificationController.startForeground(job);
         scheduleDispatcher();
     }
 
@@ -1602,69 +1598,6 @@ public class DownloadService extends Service {
         }
     }
 
-    private Notification buildProgressNotification(DownloadJob job) {
-        int requestCode = (int) (job.id % 100_000L) * 2;
-        PendingIntent cancelIntent = PendingIntent.getService(
-                this, requestCode,
-                new Intent(this, DownloadService.class)
-                        .setAction(ACTION_CANCEL_JOB)
-                        .putExtra(EXTRA_JOB_ID, job.id),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        boolean paused = job.status == DownloadJob.Status.PAUSED || job.pauseRequested;
-        PendingIntent pauseIntent = PendingIntent.getService(
-                this, requestCode + 1,
-                new Intent(this, DownloadService.class)
-                        .setAction(paused ? ACTION_RESUME_JOB : ACTION_PAUSE_JOB)
-                        .putExtra(EXTRA_JOB_ID, job.id),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        String trackName = job.currentTrackTitle != null
-                ? job.currentTrackTitle : (job.title != null ? job.title : job.url);
-        StringBuilder text = new StringBuilder();
-        if (job.waitingForNetwork || job.networkRetrying) {
-            text.append(getString(R.string.status_waiting_for_network));
-        }
-        if (job.isPlaylist && job.totalCount > 0) {
-            if (text.length() > 0) {
-                text.append(" · ");
-            }
-            text.append(getString(R.string.notif_download_playlist_progress,
-                    job.currentIndex, job.totalCount));
-        }
-        if (job.totalBytes > 0) {
-            if (text.length() > 0) {
-                text.append(" · ");
-            }
-            text.append(Formats.size(this, job.downloadedBytes))
-                    .append(" / ")
-                    .append(Formats.size(this, job.totalBytes));
-        }
-        if (paused) {
-            if (text.length() > 0) {
-                text.append(" · ");
-            }
-            text.append(getString(R.string.status_paused));
-        }
-
-        return new NotificationCompat.Builder(this, VibyApp.CHANNEL_DOWNLOADS)
-                .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(getString(R.string.notif_downloading, trackName))
-                .setContentText(text.length() > 0 ? text.toString() : null)
-                .setProgress(100, job.progress,
-                        job.status == DownloadJob.Status.PREPARING)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .addAction(0, getString(paused
-                        ? R.string.btn_resume_download
-                        : R.string.btn_pause_download), pauseIntent)
-                .addAction(0, getString(R.string.btn_cancel), cancelIntent)
-                .build();
-    }
-
-    private void updateProgressNotification(DownloadJob job) {
-        notificationManager.notify(NOTIF_PROGRESS_ID, buildProgressNotification(job));
-    }
-
     private void cleanupPendingPlaceholders(DownloadJob job) {
         if (!job.isPlaylist || job.playlistName == null) {
             return;
@@ -1683,65 +1616,6 @@ public class DownloadService extends Service {
                 dao.deletePending(playlist, videoId);
             }
         });
-    }
-
-    private void refreshForegroundState() {
-        if (pendingCount.get() <= 0) {
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
-            return;
-        }
-        DownloadJob notificationJob = activeJob;
-        if (notificationJob == null || !notificationJob.isActive()) {
-            synchronized (jobs) {
-                for (DownloadJob candidate : jobs) {
-                    if (candidate.isActive()) {
-                        notificationJob = candidate;
-                        break;
-                    }
-                }
-            }
-        }
-        if (notificationJob != null) {
-            updateProgressNotification(notificationJob);
-        }
-    }
-
-    private void postResultNotification(DownloadJob job) {
-        String text;
-        switch (job.status) {
-            case DONE:
-            case COMPLETED_WITH_ERRORS:
-                text = job.isPlaylist
-                        ? getString(R.string.notif_download_summary,
-                                job.totalCount - job.failedCount, job.failedCount)
-                        : getString(R.string.notif_download_done, job.title);
-                break;
-            case FAILED:
-                text = getString(R.string.notif_download_failed,
-                        job.error != null ? job.error : job.title);
-                break;
-            default:
-                return; // отменённые не показываем
-        }
-        NotificationCompat.Builder builder =
-                new NotificationCompat.Builder(this, VibyApp.CHANNEL_DOWNLOADS)
-                        .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                        .setContentTitle(job.title != null ? job.title : job.url)
-                        .setContentText(text)
-                        .setAutoCancel(true);
-        if (!job.failedTitles.isEmpty()) {
-            // разворачиваемое уведомление со списком нескачавшихся треков
-            StringBuilder big = new StringBuilder(text).append('\n')
-                    .append(getString(R.string.failed_tracks_header));
-            synchronized (job.failedTitles) {
-                for (String title : job.failedTitles) {
-                    big.append("\n• ").append(title);
-                }
-            }
-            builder.setStyle(new NotificationCompat.BigTextStyle().bigText(big.toString()));
-        }
-        notificationManager.notify(notifIdSeq.getAndIncrement(), builder.build());
     }
 
     /**
