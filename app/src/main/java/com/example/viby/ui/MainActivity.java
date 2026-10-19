@@ -7,12 +7,9 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.app.PendingIntent;
 import android.util.Log;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.IntentSenderRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -40,11 +37,7 @@ import com.example.viby.download.DownloadService;
 import com.example.viby.playback.PlaybackService;
 import com.example.viby.sync.YoutubePlaylistSync;
 import com.example.viby.update.AppUpdateManager;
-import com.google.android.gms.auth.api.identity.AuthorizationRequest;
-import com.google.android.gms.auth.api.identity.AuthorizationResult;
-import com.google.android.gms.auth.api.identity.Identity;
 import com.google.android.gms.common.api.ApiException;
-import com.google.android.gms.common.api.Scope;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -58,16 +51,12 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     static final String METADATA_VIDEO_ID = "com.example.viby.metadata.VIDEO_ID";
     static final String METADATA_SOURCE_URL = "com.example.viby.metadata.SOURCE_URL";
-    private static final String YOUTUBE_WRITE_SCOPE =
-            "https://www.googleapis.com/auth/youtube.force-ssl";
-
     private PlayerViewModel viewModel;
     private DrawerLayout drawerLayout;
     private MaterialToolbar toolbar;
@@ -77,26 +66,7 @@ public class MainActivity extends AppCompatActivity {
     private final ExecutorService youtubeSyncExecutor = Executors.newSingleThreadExecutor();
     private final AtomicLong streamRequestSequence = new AtomicLong();
     private YoutubePlaylistSync youtubePlaylistSync;
-    private Consumer<String> pendingYoutubeTokenAction;
-    private Consumer<Exception> pendingYoutubeAuthError;
-
-    private final ActivityResultLauncher<IntentSenderRequest> youtubeAuthorizationLauncher =
-            registerForActivityResult(
-                    new ActivityResultContracts.StartIntentSenderForResult(), result -> {
-                        if (result.getData() == null) {
-                            finishYoutubeAuthorization(null, new IllegalStateException(
-                                    getString(R.string.youtube_sync_auth_cancelled)));
-                            return;
-                        }
-                        try {
-                            AuthorizationResult authorization = Identity
-                                    .getAuthorizationClient(this)
-                                    .getAuthorizationResultFromIntent(result.getData());
-                            finishYoutubeAuthorization(authorization, null);
-                        } catch (ApiException e) {
-                            finishYoutubeAuthorization(null, e);
-                        }
-                    });
+    private YoutubeAuthorizationController youtubeAuthorizationController;
 
     private ListenableFuture<MediaController> controllerFuture;
     /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
@@ -105,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        youtubeAuthorizationController = new YoutubeAuthorizationController(this);
         setContentView(R.layout.activity_main);
 
         viewModel = new ViewModelProvider(this).get(PlayerViewModel.class);
@@ -305,7 +276,7 @@ public class MainActivity extends AppCompatActivity {
     private void saveRadioToYoutube(String playlist) {
         Toast.makeText(this, R.string.youtube_sync_authorizing,
                 Toast.LENGTH_SHORT).show();
-        requestYoutubeAccess(accessToken -> {
+        youtubeAuthorizationController.request(accessToken -> {
             Toast.makeText(this, R.string.track_radio_saving,
                     Toast.LENGTH_LONG).show();
             youtubeSyncExecutor.execute(() -> {
@@ -338,7 +309,7 @@ public class MainActivity extends AppCompatActivity {
     private void enableYoutubeSync(String playlist) {
         Toast.makeText(this, R.string.youtube_sync_authorizing,
                 Toast.LENGTH_SHORT).show();
-        requestYoutubeAccess(accessToken -> {
+        youtubeAuthorizationController.request(accessToken -> {
             Toast.makeText(this, R.string.youtube_sync_enabling,
                     Toast.LENGTH_LONG).show();
             youtubeSyncExecutor.execute(() -> {
@@ -472,7 +443,7 @@ public class MainActivity extends AppCompatActivity {
     private void performAddTrackToYoutube(String url, String playlist) {
         Toast.makeText(this, R.string.youtube_sync_authorizing,
                 Toast.LENGTH_SHORT).show();
-        requestYoutubeAccess(accessToken -> {
+        youtubeAuthorizationController.request(accessToken -> {
             Toast.makeText(this, R.string.youtube_sync_adding,
                     Toast.LENGTH_SHORT).show();
             youtubeSyncExecutor.execute(() -> {
@@ -491,61 +462,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }, this::showYoutubeSyncError);
-    }
-
-    private void requestYoutubeAccess(Consumer<String> onToken,
-                                      Consumer<Exception> onError) {
-        if (pendingYoutubeTokenAction != null) {
-            onError.accept(new IllegalStateException(
-                    getString(R.string.youtube_sync_authorizing)));
-            return;
-        }
-        pendingYoutubeTokenAction = onToken;
-        pendingYoutubeAuthError = onError;
-        AuthorizationRequest request = AuthorizationRequest.builder()
-                .setRequestedScopes(java.util.Collections.singletonList(
-                        new Scope(YOUTUBE_WRITE_SCOPE)))
-                .build();
-        Identity.getAuthorizationClient(this).authorize(request)
-                .addOnSuccessListener(authorization -> {
-                    if (authorization.hasResolution()) {
-                        PendingIntent pendingIntent = authorization.getPendingIntent();
-                        if (pendingIntent == null) {
-                            finishYoutubeAuthorization(null,
-                                    new IllegalStateException(
-                                            getString(R.string.youtube_sync_auth_cancelled)));
-                            return;
-                        }
-                        youtubeAuthorizationLauncher.launch(
-                                new IntentSenderRequest.Builder(
-                                        pendingIntent.getIntentSender()).build());
-                    } else {
-                        finishYoutubeAuthorization(authorization, null);
-                    }
-                })
-                .addOnFailureListener(error ->
-                        finishYoutubeAuthorization(null,
-                                error instanceof Exception
-                                        ? (Exception) error
-                                        : new Exception(error)));
-    }
-
-    private void finishYoutubeAuthorization(AuthorizationResult authorization,
-                                            Exception error) {
-        Consumer<String> success = pendingYoutubeTokenAction;
-        Consumer<Exception> failure = pendingYoutubeAuthError;
-        pendingYoutubeTokenAction = null;
-        pendingYoutubeAuthError = null;
-        String accessToken = authorization != null
-                ? authorization.getAccessToken() : null;
-        if (error == null && accessToken != null && !accessToken.isEmpty()) {
-            if (success != null) {
-                success.accept(accessToken);
-            }
-        } else if (failure != null) {
-            failure.accept(error != null ? error : new IllegalStateException(
-                    getString(R.string.youtube_sync_auth_cancelled)));
-        }
     }
 
     private void showYoutubeSyncError(Exception error) {
@@ -1090,7 +1006,7 @@ public class MainActivity extends AppCompatActivity {
                                          boolean deleteFiles) {
         Toast.makeText(this, R.string.youtube_sync_authorizing,
                 Toast.LENGTH_SHORT).show();
-        requestYoutubeAccess(accessToken -> {
+        youtubeAuthorizationController.request(accessToken -> {
             Toast.makeText(this, R.string.youtube_sync_deleting,
                     Toast.LENGTH_LONG).show();
             youtubeSyncExecutor.execute(() -> {
@@ -1156,8 +1072,7 @@ public class MainActivity extends AppCompatActivity {
         streamRequestSequence.incrementAndGet();
         streamResolver.shutdownNow();
         youtubeSyncExecutor.shutdownNow();
-        pendingYoutubeTokenAction = null;
-        pendingYoutubeAuthError = null;
+        youtubeAuthorizationController.destroy();
         if (appUpdateManager != null) {
             appUpdateManager.close();
             appUpdateManager = null;
