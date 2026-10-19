@@ -79,8 +79,6 @@ public class DownloadService extends Service {
 
     private static final int NOTIF_PROGRESS_ID = 1;
     private static final int ENGINE_WAIT_SECONDS = 60;
-    private static final int TRACK_RADIO_LIMIT = 50;
-
     /** Клиенты для повторной попытки: tv/mweb обходят ложное «Video unavailable». */
     private static final String ALT_PLAYER_CLIENTS = "default,tv,mweb";
 
@@ -206,6 +204,7 @@ public class DownloadService extends Service {
     private volatile boolean networkAvailable = true;
     private TrackDao dao;
     private DownloadQueueRepository queueRepository;
+    private YoutubeExtractor youtubeExtractor;
     private long lastPublishMs;
 
     @Override
@@ -216,6 +215,7 @@ public class DownloadService extends Service {
         VibyDatabase database = VibyDatabase.get(this);
         dao = database.trackDao();
         queueRepository = new DownloadQueueRepository(database.pendingDownloadDao());
+        youtubeExtractor = YoutubeExtractor.create(this);
         networkAvailable = hasUsableNetwork();
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
@@ -428,14 +428,6 @@ public class DownloadService extends Service {
         }
     }
 
-    /** Куки залогиненного аккаунта — снимают возрастные ограничения. */
-    private void applyCookies(YoutubeDLRequest request) {
-        if (com.example.viby.util.YtCookies.isLoggedIn(this)) {
-            request.addOption("--cookies",
-                    com.example.viby.util.YtCookies.file(this).getAbsolutePath());
-        }
-    }
-
     private boolean hasActiveJob(String url, @Nullable String playlist) {
         synchronized (jobs) {
             for (DownloadJob job : jobs) {
@@ -487,8 +479,7 @@ public class DownloadService extends Service {
         publish(true);
         updateProgressNotification(job);
 
-        YoutubeDLRequest infoRequest = new YoutubeDLRequest(job.url);
-        applyCookies(infoRequest);
+        YoutubeDLRequest infoRequest = youtubeExtractor.videoInfoRequest(job.url);
         VideoInfo info = fetchVideoInfo(job, infoRequest);
         String videoId = info.getId();
         String title = info.getTitle() != null ? info.getTitle() : job.url;
@@ -529,17 +520,8 @@ public class DownloadService extends Service {
         publish(true);
         updateProgressNotification(job);
 
-        YoutubeDLRequest infoRequest = new YoutubeDLRequest(job.url);
-        infoRequest.addOption("--flat-playlist");
-        infoRequest.addOption("--dump-single-json");
-        infoRequest.addOption("--no-warnings");
-        // Avoid yt-dlp reporting a missing webpage as an authentication failure.
-        // Cookies are still supplied below and remain effective for private playlists.
-        infoRequest.addOption("--extractor-args", "youtubetab:skip=authcheck");
-        if (com.example.viby.util.YoutubeUrlParser.isRadioMixUrl(job.url)) {
-            infoRequest.addOption("--playlist-end", String.valueOf(TRACK_RADIO_LIMIT));
-        }
-        applyCookies(infoRequest);
+        YoutubeDLRequest infoRequest = youtubeExtractor.playlistInfoRequest(
+                job.url, com.example.viby.util.YoutubeUrlParser.isRadioMixUrl(job.url));
         String processId = "job-" + job.id + "-info";
         activeProcessId = processId;
         YoutubeDLResponse response = fetchPlaylistInfo(job, infoRequest, processId);
@@ -1161,7 +1143,7 @@ public class DownloadService extends Service {
             throwIfPaused(job);
             job.networkInterrupted = false;
             try {
-                VideoInfo info = YoutubeDL.getInstance().getInfo(request);
+                VideoInfo info = youtubeExtractor.getVideoInfo(request);
                 job.networkInterrupted = false;
                 clearNetworkRetry(job);
                 return info;
@@ -1192,8 +1174,8 @@ public class DownloadService extends Service {
             job.networkInterrupted = false;
             activeProcessId = processId;
             try {
-                YoutubeDLResponse response = YoutubeDL.getInstance()
-                        .execute(request, processId, null);
+                YoutubeDLResponse response = youtubeExtractor.getPlaylistInfo(
+                        request, processId);
                 job.networkInterrupted = false;
                 clearNetworkRetry(job);
                 return response;
@@ -1290,7 +1272,7 @@ public class DownloadService extends Service {
             request.addOption("--extractor-args",
                     "youtube:player_client=" + playerClients);
         }
-        applyCookies(request);
+        youtubeExtractor.applyAuthentication(request);
 
         String processId = "job-" + job.id;
         activeProcessId = processId;
