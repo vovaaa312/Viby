@@ -42,8 +42,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import kotlin.Unit;
-
 /**
  * Foreground-сервис с последовательной очередью загрузок yt-dlp.
  * Треки и плейлисты добавляются интентом ACTION_ENQUEUE; загрузку можно
@@ -205,6 +203,7 @@ public class DownloadService extends Service {
     private TrackDao dao;
     private DownloadQueueRepository queueRepository;
     private YoutubeExtractor youtubeExtractor;
+    private AudioDownloader audioDownloader;
     private long lastPublishMs;
 
     @Override
@@ -216,6 +215,7 @@ public class DownloadService extends Service {
         dao = database.trackDao();
         queueRepository = new DownloadQueueRepository(database.pendingDownloadDao());
         youtubeExtractor = YoutubeExtractor.create(this);
+        audioDownloader = AudioDownloader.create(youtubeExtractor);
         networkAvailable = hasUsableNetwork();
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
@@ -1256,28 +1256,11 @@ public class DownloadService extends Service {
     private File executeDownload(DownloadJob job, String videoUrl, File dir,
                                  String baseName, String format,
                                  @Nullable String playerClients) throws Exception {
-        // % в названии сломал бы шаблон yt-dlp
-        String template = new File(dir, baseName.replace("%", "%%") + ".%(ext)s")
-                .getAbsolutePath();
-        YoutubeDLRequest request = new YoutubeDLRequest(videoUrl);
-        request.addOption("--no-playlist");
-        request.addOption("-x");
-        request.addOption("--audio-format", format);
-        request.addOption("--audio-quality", "0");
-        request.addOption("--embed-thumbnail");
-        request.addOption("--embed-metadata");
-        request.addOption("--no-mtime");
-        request.addOption("-o", template);
-        if (playerClients != null) {
-            request.addOption("--extractor-args",
-                    "youtube:player_client=" + playerClients);
-        }
-        youtubeExtractor.applyAuthentication(request);
-
         String processId = "job-" + job.id;
         activeProcessId = processId;
         try {
-            YoutubeDL.getInstance().execute(request, processId,
+            return audioDownloader.download(
+                    videoUrl, dir, baseName, format, playerClients, processId,
                     (progress, etaSeconds, line) -> {
                         job.progress = DownloadProgressParser.resolve(
                                 job.progress, progress, line);
@@ -1295,26 +1278,10 @@ public class DownloadService extends Service {
                         parseSizes(job, line);
                         publish(false);
                         updateProgressNotification(job);
-                        return Unit.INSTANCE;
                     });
         } finally {
             activeProcessId = null;
         }
-
-        File expected = new File(dir, baseName + "." + format);
-        if (expected.exists()) {
-            return expected;
-        }
-        // на всякий случай: yt-dlp мог сохранить с другим расширением
-        String finalBaseName = baseName;
-        File[] candidates = dir.listFiles((d, name) -> {
-            int dot = name.lastIndexOf('.');
-            return dot > 0 && name.substring(0, dot).equals(finalBaseName);
-        });
-        if (candidates != null && candidates.length > 0) {
-            return candidates[0];
-        }
-        throw new IllegalStateException("Файл не найден после загрузки: " + baseName);
     }
 
     private static void parseSizes(DownloadJob job, @Nullable String line) {
