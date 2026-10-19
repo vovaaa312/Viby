@@ -169,8 +169,9 @@ public class DownloadService extends Service {
     public static void restorePending(Context context) {
         Context app = context.getApplicationContext();
         VibyDatabase.dbExecutor.execute(() -> {
-            for (com.example.viby.data.PendingDownload pending :
-                    VibyDatabase.get(app).pendingDownloadDao().getAllSync()) {
+            DownloadQueueRepository repository = new DownloadQueueRepository(
+                    VibyDatabase.get(app).pendingDownloadDao());
+            for (com.example.viby.data.PendingDownload pending : repository.loadAll()) {
                 Intent intent = new Intent(app, DownloadService.class)
                         .setAction(ACTION_ENQUEUE)
                         .putExtra(EXTRA_URL, pending.url)
@@ -204,6 +205,7 @@ public class DownloadService extends Service {
     private ConnectivityManager.NetworkCallback networkCallback;
     private volatile boolean networkAvailable = true;
     private TrackDao dao;
+    private DownloadQueueRepository queueRepository;
     private long lastPublishMs;
 
     @Override
@@ -211,7 +213,9 @@ public class DownloadService extends Service {
         super.onCreate();
         notificationManager = getSystemService(NotificationManager.class);
         connectivityManager = getSystemService(ConnectivityManager.class);
-        dao = VibyDatabase.get(this).trackDao();
+        VibyDatabase database = VibyDatabase.get(this);
+        dao = database.trackDao();
+        queueRepository = new DownloadQueueRepository(database.pendingDownloadDao());
         networkAvailable = hasUsableNetwork();
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
@@ -298,9 +302,9 @@ public class DownloadService extends Service {
                         job = DownloadJobFactory.create(
                                 url, playlist, isPlaylist, pendingId,
                                 restoredPosition, restoredPaused, restoredTrackOrder,
-                                nextQueuePositionLocked());
+                                DownloadScheduler.nextQueuePosition(jobs));
                         jobs.add(job);
-                        sortJobsLocked();
+                        DownloadScheduler.sort(jobs);
                     }
                     enqueuePreparedJob(job, pendingId == 0);
                 }
@@ -343,7 +347,7 @@ public class DownloadService extends Service {
         while (true) {
             DownloadJob next;
             synchronized (jobs) {
-                next = nextRunnableJobLocked();
+                next = DownloadScheduler.nextRunnable(jobs);
                 if (next == null) {
                     dispatcherRunning = false;
                     return;
@@ -351,17 +355,6 @@ public class DownloadService extends Service {
             }
             runJob(next);
         }
-    }
-
-    @Nullable
-    private DownloadJob nextRunnableJobLocked() {
-        for (DownloadJob job : jobs) {
-            if (job.status == DownloadJob.Status.QUEUED
-                    && !job.pauseRequested && !job.cancelRequested) {
-                return job;
-            }
-        }
-        return null;
     }
 
     private void runJob(DownloadJob job) {
@@ -455,38 +448,9 @@ public class DownloadService extends Service {
         return false;
     }
 
-    private long nextQueuePositionLocked() {
-        long position = 0L;
-        for (DownloadJob job : jobs) {
-            if (job.isActive()) {
-                position = Math.max(position, job.queuePosition + 1L);
-            }
-        }
-        return position;
-    }
-
-    private void sortJobsLocked() {
-        jobs.sort((left, right) -> {
-            if (left.isActive() != right.isActive()) {
-                return left.isActive() ? -1 : 1;
-            }
-            return Long.compare(left.queuePosition, right.queuePosition);
-        });
-    }
-
     private void persistPending(DownloadJob job) {
-        VibyDatabase.dbExecutor.execute(() -> {
-            com.example.viby.data.PendingDownload pending =
-                    new com.example.viby.data.PendingDownload();
-            pending.url = job.url;
-            pending.playlistName = job.playlistName;
-            pending.isPlaylist = job.isPlaylist;
-            pending.createdAt = System.currentTimeMillis();
-            pending.queuePosition = job.queuePosition;
-            pending.paused = job.pauseRequested;
-            pending.trackOrderJson = job.trackOrderJson;
-            job.pendingId = VibyDatabase.get(this).pendingDownloadDao().insert(pending);
-        });
+        long createdAt = System.currentTimeMillis();
+        VibyDatabase.dbExecutor.execute(() -> queueRepository.insert(job, createdAt));
     }
 
     private void removePending(DownloadJob job) {
@@ -497,41 +461,23 @@ public class DownloadService extends Service {
             job.completionHandled = true;
         }
         // dbExecutor последовательный: insert из persistPending выполнится раньше
-        VibyDatabase.dbExecutor.execute(() -> {
-            if (job.pendingId != 0) {
-                VibyDatabase.get(this).pendingDownloadDao().delete(job.pendingId);
-            }
-        });
+        VibyDatabase.dbExecutor.execute(() -> queueRepository.delete(job.pendingId));
         pendingCount.decrementAndGet();
     }
 
     private void persistPaused(DownloadJob job) {
-        VibyDatabase.dbExecutor.execute(() -> {
-            if (job.pendingId != 0) {
-                VibyDatabase.get(this).pendingDownloadDao()
-                        .updatePaused(job.pendingId, job.pauseRequested);
-            }
-        });
+        VibyDatabase.dbExecutor.execute(() -> queueRepository.updatePaused(job));
     }
 
     private void persistQueueOrder() {
         List<DownloadJob> snapshot;
         synchronized (jobs) {
-            long position = 0L;
-            for (DownloadJob job : jobs) {
-                if (job.isActive()) {
-                    job.queuePosition = position++;
-                }
-            }
+            DownloadScheduler.normalizeActivePositions(jobs);
             snapshot = new ArrayList<>(jobs);
         }
         VibyDatabase.dbExecutor.execute(() -> {
-            com.example.viby.data.PendingDownloadDao pendingDao =
-                    VibyDatabase.get(this).pendingDownloadDao();
             for (DownloadJob job : snapshot) {
-                if (job.isActive() && job.pendingId != 0) {
-                    pendingDao.updateQueuePosition(job.pendingId, job.queuePosition);
-                }
+                queueRepository.updateQueuePosition(job);
             }
         });
     }
@@ -1543,8 +1489,8 @@ public class DownloadService extends Service {
             return;
         }
         synchronized (jobs) {
-            job.queuePosition = nextQueuePositionLocked();
-            sortJobsLocked();
+            job.queuePosition = DownloadScheduler.nextQueuePosition(jobs);
+            DownloadScheduler.sort(jobs);
         }
         job.error = null;
         job.cancelRequested = false;
@@ -1734,12 +1680,8 @@ public class DownloadService extends Service {
 
     private void persistTrackOrder(DownloadJob job) {
         String order = job.trackOrderJson;
-        VibyDatabase.dbExecutor.execute(() -> {
-            if (job.pendingId != 0) {
-                VibyDatabase.get(this).pendingDownloadDao()
-                        .updateTrackOrder(job.pendingId, order);
-            }
-        });
+        VibyDatabase.dbExecutor.execute(
+                () -> queueRepository.updateTrackOrder(job, order));
     }
 
     @Nullable
