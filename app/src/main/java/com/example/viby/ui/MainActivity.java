@@ -4,7 +4,6 @@ import android.Manifest;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.widget.Toast;
@@ -17,11 +16,8 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaController;
-import androidx.media3.session.SessionCommand;
 import androidx.media3.session.SessionToken;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
@@ -40,14 +36,11 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.yausername.youtubedl_android.YoutubeDL;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-    static final String METADATA_VIDEO_ID = "com.example.viby.metadata.VIDEO_ID";
-    static final String METADATA_SOURCE_URL = "com.example.viby.metadata.SOURCE_URL";
     private PlayerViewModel viewModel;
     private DrawerLayout drawerLayout;
     private MaterialToolbar toolbar;
@@ -55,10 +48,9 @@ public class MainActivity extends AppCompatActivity {
     private AppUpdateManager appUpdateManager;
     private YoutubeSyncController youtubeSyncController;
     private TrackStreamResolver trackStreamResolver;
+    private PlaybackQueueController playbackQueueController;
 
     private ListenableFuture<MediaController> controllerFuture;
-    /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
-    private String loadedPlaylist;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
         viewModel = new ViewModelProvider(this).get(PlayerViewModel.class);
         youtubeSyncController = new YoutubeSyncController(this);
         trackStreamResolver = new TrackStreamResolver(this);
+        playbackQueueController = new PlaybackQueueController(this, viewModel);
 
         drawerLayout = findViewById(R.id.drawerLayout);
         toolbar = findViewById(R.id.toolbar);
@@ -118,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
         viewModel.getActivePlaylist().observe(this, name -> toolbar.setTitle(name));
         viewModel.playlistSource.observe(this, source -> updateYoutubeActions());
         viewModel.tracks.observe(this, tracks -> {
-            syncQueue();
+            playbackQueueController.syncWithActivePlaylist();
             updateYoutubeActions();
         });
 
@@ -286,12 +279,7 @@ public class MainActivity extends AppCompatActivity {
         controllerFuture.addListener(() -> {
             try {
                 MediaController controller = controllerFuture.get();
-                if (controller.getMediaItemCount() > 0) {
-                    // сервис уже играл (например, после поворота) — очередь не трогаем
-                    loadedPlaylist = viewModel.getQueuePlaylist();
-                }
-                viewModel.controller.setValue(controller);
-                syncQueue();
+                playbackQueueController.connect(controller);
             } catch (Exception e) {
                 Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
             }
@@ -301,123 +289,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        viewModel.controller.setValue(null);
-        loadedPlaylist = null;
+        playbackQueueController.disconnect();
         if (controllerFuture != null) {
             MediaController.releaseFuture(controllerFuture);
             controllerFuture = null;
         }
-    }
-
-    /**
-     * Дозаполняет очередь плеера. Открытие другого плейлиста очередь НЕ заменяет —
-     * замена происходит только при тапе по треку (playTrack).
-     */
-    private void syncQueue() {
-        MediaController controller = viewModel.controller.getValue();
-        List<Track> tracks = viewModel.tracks.getValue();
-        String active = viewModel.getActivePlaylistName();
-        if (controller == null || tracks == null || active == null) {
-            return;
-        }
-        tracks = playableTracks(tracks);
-
-        if (active.equals(loadedPlaylist)) {
-            if (viewModel.isQueueCustomized()) {
-                return;
-            }
-            // тот же плейлист: докачались новые треки — дописываем в хвост очереди
-            int inQueue = controller.getMediaItemCount();
-            boolean prefixMatches = inQueue <= tracks.size();
-            for (int i = 0; prefixMatches && i < inQueue; i++) {
-                prefixMatches = String.valueOf(tracks.get(i).id)
-                        .equals(controller.getMediaItemAt(i).mediaId);
-            }
-            if (prefixMatches && tracks.size() > inQueue) {
-                List<MediaItem> tail = new ArrayList<>();
-                for (int i = inQueue; i < tracks.size(); i++) {
-                    tail.add(toMediaItem(tracks.get(i)));
-                }
-                controller.addMediaItems(tail);
-                if (inQueue == 0) {
-                    controller.prepare();
-                }
-            } else if (!prefixMatches || tracks.size() < inQueue) {
-                resyncQueueOrder(active, tracks);
-            }
-            return;
-        }
-
-        // очередь пуста (холодный старт) — тихо загружаем просматриваемый плейлист без плей
-        if (controller.getMediaItemCount() == 0 && !tracks.isEmpty()) {
-            loadQueue(controller, tracks, active, 0, false);
-        }
-    }
-
-    /** Заменить очередь плеера треками плейлиста. */
-    private void loadQueue(MediaController controller, List<Track> tracks,
-                           String playlist, int startIndex, boolean play) {
-        List<MediaItem> items = new ArrayList<>();
-        for (Track track : tracks) {
-            items.add(toMediaItem(track));
-        }
-        loadedPlaylist = playlist;
-        viewModel.setQueuePlaylist(playlist);
-        viewModel.setQueueCustomized(false);
-        controller.setMediaItems(items, startIndex, 0);
-        controller.prepare();
-        if (play) {
-            controller.play();
-        }
-    }
-
-    static MediaItem toMediaItem(Track track) {
-        return new MediaItem.Builder()
-                .setUri(Uri.fromFile(new File(track.filePath)))
-                .setMediaId(String.valueOf(track.id))
-                .setMediaMetadata(toMediaMetadata(track))
-                .build();
-    }
-
-    private static MediaItem toStreamMediaItem(Track track, String streamUrl) {
-        return new MediaItem.Builder()
-                .setUri(Uri.parse(streamUrl))
-                .setMediaId(String.valueOf(track.id))
-                .setMediaMetadata(toMediaMetadata(track))
-                .build();
-    }
-
-    private static MediaMetadata toMediaMetadata(Track track) {
-        Bundle extras = new Bundle();
-        if (track.videoId != null && !track.videoId.isEmpty()) {
-            extras.putString(METADATA_VIDEO_ID, track.videoId);
-        }
-        if (track.sourceUrl != null && !track.sourceUrl.isEmpty()) {
-            extras.putString(METADATA_SOURCE_URL, track.sourceUrl);
-        }
-        return new MediaMetadata.Builder()
-                .setTitle(track.title)
-                .setArtist(track.uploader)
-                .setArtworkUri(track.thumbnailUrl != null
-                        ? Uri.parse(track.thumbnailUrl) : null)
-                .setDurationMs(track.durationMs)
-                .setExtras(extras)
-                .build();
-    }
-
-    private static boolean isPlayableLocal(Track track) {
-        return track.downloaded && track.filePath != null && !track.filePath.isEmpty()
-                && new File(track.filePath).isFile();
-    }
-
-    private static List<Track> playableTracks(List<Track> tracks) {
-        List<Track> playable = new ArrayList<>();
-        for (Track track : tracks) {
-            if (isPlayableLocal(track)) {
-                playable.add(track);
-            }
-        }
-        return playable;
     }
 
     // ------------------------------------------------------------- for fragments
@@ -526,62 +402,18 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** После сортировки перestraивает очередь, сохраняя текущий трек и позицию. */
-    private void resyncQueueOrder(String playlist, List<Track> sorted) {
-        sorted = playableTracks(sorted);
-        MediaController controller = viewModel.controller.getValue();
-        if (controller == null || !playlist.equals(loadedPlaylist)
-                || viewModel.isQueueCustomized()) {
-            return; // очередь держит другой плейлист — трогать нечего
-        }
-        String currentId = controller.getCurrentMediaItem() != null
-                ? controller.getCurrentMediaItem().mediaId : null;
-        long position = controller.getCurrentPosition();
-        boolean playWhenReady = controller.getPlayWhenReady();
-
-        List<MediaItem> items = new ArrayList<>();
-        int startIndex = 0;
-        for (int i = 0; i < sorted.size(); i++) {
-            items.add(toMediaItem(sorted.get(i)));
-            if (currentId != null && currentId.equals(String.valueOf(sorted.get(i).id))) {
-                startIndex = i;
-            }
-        }
-        controller.setMediaItems(items, startIndex, currentId != null ? position : 0);
-        controller.prepare();
-        controller.setPlayWhenReady(playWhenReady);
-    }
-
     /** Играть трек из списка. Если открыт другой плейлист — он заменяет очередь. */
     void playTrack(Track track, int position) {
-        MediaController controller = viewModel.controller.getValue();
         List<Track> tracks = viewModel.tracks.getValue();
         String active = viewModel.getActivePlaylistName();
-        if (controller == null || tracks == null || active == null) {
+        if (tracks == null || active == null) {
             return;
         }
-        if (!isPlayableLocal(track)) {
+        if (!PlaybackQueueController.isPlayableLocal(track)) {
             playPendingTrack(track, active);
             return;
         }
-        tracks = playableTracks(tracks);
-        if (active.equals(loadedPlaylist)) {
-            for (int i = 0; i < controller.getMediaItemCount(); i++) {
-                if (String.valueOf(track.id).equals(controller.getMediaItemAt(i).mediaId)) {
-                    controller.seekTo(i, 0);
-                    controller.play();
-                    return;
-                }
-            }
-        }
-        int playablePosition = 0;
-        for (int i = 0; i < tracks.size(); i++) {
-            if (tracks.get(i).id == track.id) {
-                playablePosition = i;
-                break;
-            }
-        }
-        loadQueue(controller, tracks, active, playablePosition, true);
+        playbackQueueController.playLocalTrack(track, tracks, active);
     }
 
     private void playPendingTrack(Track track, String playlist) {
@@ -615,78 +447,23 @@ public class MainActivity extends AppCompatActivity {
         if (isDestroyed()) {
             return;
         }
-        MediaController controller = viewModel.controller.getValue();
         List<Track> latestTracks = viewModel.tracks.getValue();
-        if (controller == null || latestTracks == null) {
+        if (latestTracks == null) {
             return;
         }
-        List<MediaItem> items = new ArrayList<>();
-        int startIndex = 0;
-        for (Track candidate : latestTracks) {
-            if (candidate.id == track.id) {
-                if (isPlayableLocal(candidate)) {
-                    items.add(toMediaItem(candidate));
-                } else {
-                    items.add(toStreamMediaItem(candidate, streamUrl));
-                }
-                startIndex = items.size() - 1;
-            } else if (isPlayableLocal(candidate)) {
-                items.add(toMediaItem(candidate));
-            }
-        }
-        if (items.isEmpty()) {
-            return;
-        }
-        loadedPlaylist = playlist;
-        viewModel.setQueuePlaylist(playlist);
-        viewModel.setQueueCustomized(true);
-        controller.setMediaItems(items, startIndex, 0L);
-        controller.prepare();
-        controller.play();
+        playbackQueueController.playResolvedStream(
+                track, playlist, latestTracks, streamUrl);
     }
 
     /** Добавить треки в конец очереди воспроизведения (без изменения БД). */
     void addToQueue(List<Track> tracks) {
-        MediaController controller = viewModel.controller.getValue();
-        if (controller == null || tracks.isEmpty()) {
-            return;
-        }
-        List<MediaItem> items = new ArrayList<>();
-        for (Track track : tracks) {
-            items.add(toMediaItem(track));
-        }
-        controller.addMediaItems(items);
-        markQueueCustomized();
-        Toast.makeText(this, R.string.added_to_queue, Toast.LENGTH_SHORT).show();
+        playbackQueueController.addToQueue(tracks);
     }
 
     /** Вставить треки сразу после проигрываемого. */
     @UnstableApi
     void insertAfterCurrent(List<Track> tracks) {
-        MediaController controller = viewModel.controller.getValue();
-        if (controller == null || tracks.isEmpty()) {
-            return;
-        }
-        List<MediaItem> items = new ArrayList<>();
-        for (Track track : tracks) {
-            items.add(toMediaItem(track));
-        }
-        if (controller.getShuffleModeEnabled()) {
-            ArrayList<Bundle> itemBundles = new ArrayList<>(items.size());
-            for (MediaItem item : items) {
-                itemBundles.add(item.toBundleIncludeLocalConfiguration());
-            }
-            Bundle args = new Bundle();
-            args.putParcelableArrayList(PlaybackService.EXTRA_MEDIA_ITEMS, itemBundles);
-            controller.sendCustomCommand(new SessionCommand(
-                    PlaybackService.ACTION_INSERT_AFTER_CURRENT, Bundle.EMPTY), args);
-        } else {
-            int index = controller.getMediaItemCount() == 0
-                    ? 0 : controller.getCurrentMediaItemIndex() + 1;
-            controller.addMediaItems(index, items);
-        }
-        markQueueCustomized();
-        Toast.makeText(this, R.string.added_to_queue, Toast.LENGTH_SHORT).show();
+        playbackQueueController.insertAfterCurrent(tracks);
     }
 
     /** Добавить треки в другой плейлист, сохранив исходные записи и общий медиафайл. */
@@ -754,24 +531,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void removeFromQueue(List<Track> tracks) {
-        MediaController controller = viewModel.controller.getValue();
-        if (controller == null) {
-            return;
-        }
-        java.util.HashSet<String> ids = new java.util.HashSet<>();
-        for (Track track : tracks) {
-            ids.add(String.valueOf(track.id));
-        }
-        boolean removed = false;
-        for (int i = controller.getMediaItemCount() - 1; i >= 0; i--) {
-            if (ids.contains(controller.getMediaItemAt(i).mediaId)) {
-                controller.removeMediaItem(i);
-                removed = true;
-            }
-        }
-        if (removed) {
-            markQueueCustomized();
-        }
+        playbackQueueController.removeFromQueue(tracks);
     }
 
     @Override
@@ -787,51 +547,12 @@ public class MainActivity extends AppCompatActivity {
 
     /** Called by queue editing UI so playlist synchronization does not undo manual changes. */
     void markQueueCustomized() {
-        viewModel.setQueueCustomized(true);
+        playbackQueueController.markCustomized();
     }
 
     /** Rebuilds playback from the currently open playlist and disables shuffle. */
     void resetPlaybackQueue() {
-        MediaController controller = viewModel.controller.getValue();
-        List<Track> tracks = viewModel.tracks.getValue();
-        String active = viewModel.getActivePlaylistName();
-        if (controller == null || tracks == null || active == null) {
-            return;
-        }
-
-        tracks = playableTracks(tracks);
-        String currentId = controller.getCurrentMediaItem() != null
-                ? controller.getCurrentMediaItem().mediaId : null;
-        long currentPosition = Math.max(0L, controller.getCurrentPosition());
-        boolean playWhenReady = controller.getPlayWhenReady();
-        int startIndex = 0;
-        boolean currentStillExists = false;
-        List<MediaItem> items = new ArrayList<>();
-        for (int i = 0; i < tracks.size(); i++) {
-            Track track = tracks.get(i);
-            items.add(toMediaItem(track));
-            if (currentId != null && currentId.equals(String.valueOf(track.id))) {
-                startIndex = i;
-                currentStillExists = true;
-            }
-        }
-
-        loadedPlaylist = active;
-        viewModel.setQueuePlaylist(active);
-        viewModel.setQueueCustomized(false);
-        if (items.isEmpty()) {
-            controller.stop();
-            controller.clearMediaItems();
-        } else {
-            controller.setMediaItems(items, startIndex,
-                    currentStillExists ? currentPosition : 0L);
-            controller.prepare();
-            controller.setPlayWhenReady(playWhenReady);
-        }
-        // Keep this command last: it must win over the old queue's shuffle state.
-        controller.setShuffleModeEnabled(false);
-        PlaybackService.rememberShuffleDisabled(this);
-        Toast.makeText(this, R.string.playback_queue_reset, Toast.LENGTH_SHORT).show();
+        playbackQueueController.resetToActivePlaylist();
     }
 
     /** Удалить целый плейлист: все треки, файлы и папку. */
@@ -847,14 +568,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void deletePlaylist(String name) {
-        MediaController controller = viewModel.controller.getValue();
-        if (name.equals(loadedPlaylist) && controller != null) {
-            controller.stop();
-            controller.clearMediaItems();
-            loadedPlaylist = null;
-            viewModel.setQueuePlaylist(null);
-            viewModel.setQueueCustomized(false);
-        }
+        playbackQueueController.clearIfLoaded(name);
         String defaultPlaylist = getString(R.string.default_playlist);
         if (name.equals(viewModel.getActivePlaylistName())) {
             viewModel.setActivePlaylist(defaultPlaylist);

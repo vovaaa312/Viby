@@ -54,9 +54,9 @@ public class LyricsBottomSheetDialogFragment extends BottomSheetDialogFragment {
         Bundle extras = item.mediaMetadata.extras;
         if (extras != null) {
             arguments.putString(ARG_VIDEO_ID,
-                    extras.getString(MainActivity.METADATA_VIDEO_ID));
+                    extras.getString(PlaybackQueueController.METADATA_VIDEO_ID));
             arguments.putString(ARG_SOURCE_URL,
-                    extras.getString(MainActivity.METADATA_SOURCE_URL));
+                    extras.getString(PlaybackQueueController.METADATA_SOURCE_URL));
         }
         fragment.setArguments(arguments);
         return fragment;

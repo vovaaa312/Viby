@@ -27,7 +27,7 @@ public class MainActivityMediaItemInstrumentedTest {
         track.videoId = "abcdefghijk";
         track.sourceUrl = "https://youtube.com/watch?v=abcdefghijk";
 
-        MediaItem item = MainActivity.toMediaItem(track);
+        MediaItem item = PlaybackQueueController.toMediaItem(track);
 
         assertEquals("42", item.mediaId);
         assertNotNull(item.localConfiguration);
@@ -36,9 +36,9 @@ public class MainActivityMediaItemInstrumentedTest {
         assertEquals("Artist", item.mediaMetadata.artist.toString());
         assertEquals(Long.valueOf(123_456), item.mediaMetadata.durationMs);
         assertEquals("abcdefghijk", item.mediaMetadata.extras.getString(
-                MainActivity.METADATA_VIDEO_ID));
+                PlaybackQueueController.METADATA_VIDEO_ID));
         assertEquals(track.sourceUrl, item.mediaMetadata.extras.getString(
-                MainActivity.METADATA_SOURCE_URL));
+                PlaybackQueueController.METADATA_SOURCE_URL));
     }
 
     @Test
@@ -48,10 +48,12 @@ public class MainActivityMediaItemInstrumentedTest {
         track.title = "Local";
         track.filePath = "/tmp/local.mp3";
 
-        MediaItem item = MainActivity.toMediaItem(track);
+        MediaItem item = PlaybackQueueController.toMediaItem(track);
 
         assertNotNull(item.mediaMetadata.extras);
-        assertFalse(item.mediaMetadata.extras.containsKey(MainActivity.METADATA_VIDEO_ID));
-        assertFalse(item.mediaMetadata.extras.containsKey(MainActivity.METADATA_SOURCE_URL));
+        assertFalse(item.mediaMetadata.extras.containsKey(
+                PlaybackQueueController.METADATA_VIDEO_ID));
+        assertFalse(item.mediaMetadata.extras.containsKey(
+                PlaybackQueueController.METADATA_SOURCE_URL));
     }
 }
