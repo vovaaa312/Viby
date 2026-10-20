@@ -49,6 +49,7 @@ public class MainActivity extends AppCompatActivity {
     private YoutubeSyncController youtubeSyncController;
     private TrackStreamResolver trackStreamResolver;
     private PlaybackQueueController playbackQueueController;
+    private LibraryFileController libraryFileController;
 
     private ListenableFuture<MediaController> controllerFuture;
 
@@ -61,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
         youtubeSyncController = new YoutubeSyncController(this);
         trackStreamResolver = new TrackStreamResolver(this);
         playbackQueueController = new PlaybackQueueController(this, viewModel);
+        libraryFileController = new LibraryFileController(this);
 
         drawerLayout = findViewById(R.id.drawerLayout);
         toolbar = findViewById(R.id.toolbar);
@@ -468,25 +470,10 @@ public class MainActivity extends AppCompatActivity {
 
     /** Добавить треки в другой плейлист, сохранив исходные записи и общий медиафайл. */
     void copyTracksToPlaylist(List<Track> tracks, String targetPlaylist) {
-        String target = com.example.viby.util.StorageHelper.sanitize(targetPlaylist);
+        String target = libraryFileController.sanitizePlaylistName(targetPlaylist);
         youtubeSyncController.offerTrackCopy(tracks, target,
-                afterCopy -> copyTracksLocally(tracks, target, afterCopy));
-    }
-
-    private void copyTracksLocally(List<Track> tracks, String target,
-                                   Runnable afterCopy) {
-        VibyDatabase.dbExecutor.execute(() -> {
-            var dao = VibyDatabase.get(this).trackDao();
-            int total = com.example.viby.data.PlaylistTrackCopier.create(dao)
-                    .copy(tracks, target);
-            runOnUiThread(() -> {
-                Toast.makeText(this, getString(R.string.tracks_copied, total),
-                        Toast.LENGTH_SHORT).show();
-                if (afterCopy != null) {
-                    afterCopy.run();
-                }
-            });
-        });
+                afterCopy -> libraryFileController.copyTracks(
+                        tracks, target, afterCopy));
     }
 
     /** Убрать записи из плейлиста (файлы остаются на диске). */
@@ -501,33 +488,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void deleteTracksWithSyncChoice(List<Track> tracks, boolean deleteFiles) {
         youtubeSyncController.deleteTracksWithChoice(tracks, deleteFiles,
-                () -> deleteTracksLocally(tracks, deleteFiles), this::removeFromQueue);
-    }
-
-    private void deleteTracksLocally(List<Track> tracks, boolean deleteFiles) {
-        removeFromQueue(tracks);
-        VibyDatabase.dbExecutor.execute(() -> {
-            var dao = VibyDatabase.get(this).trackDao();
-            for (Track track : tracks) {
-                dao.delete(track);
-                if (deleteFiles) {
-                    deleteFileIfUnreferenced(dao, track.filePath);
-                }
-            }
-            runOnUiThread(() -> Toast.makeText(this,
-                    getString(R.string.tracks_deleted, tracks.size()),
-                    Toast.LENGTH_SHORT).show());
-        });
-    }
-
-    private static void deleteFileIfUnreferenced(
-            com.example.viby.data.TrackDao dao, String filePath) {
-        if (filePath == null || filePath.isEmpty()
-                || dao.countFileReferences(filePath) > 0) {
-            return;
-        }
-        //noinspection ResultOfMethodCallIgnored
-        new File(filePath).delete();
+                () -> libraryFileController.deleteTracks(
+                        tracks, deleteFiles, () -> removeFromQueue(tracks)),
+                this::removeFromQueue);
     }
 
     private void removeFromQueue(List<Track> tracks) {
@@ -573,29 +536,11 @@ public class MainActivity extends AppCompatActivity {
         if (name.equals(viewModel.getActivePlaylistName())) {
             viewModel.setActivePlaylist(defaultPlaylist);
         }
-        VibyDatabase.dbExecutor.execute(() -> {
-            var dao = VibyDatabase.get(this).trackDao();
-            List<Track> tracks = dao.getPlaylistSync(name);
-            for (Track track : tracks) {
-                dao.delete(track);
-                deleteFileIfUnreferenced(dao, track.filePath);
-            }
-            File dir = com.example.viby.util.StorageHelper.playlistDir(this, name);
-            File[] leftovers = dir.listFiles();
-            if (leftovers != null) {
-                for (File file : leftovers) {
-                    if (dao.countFileReferences(file.getAbsolutePath()) == 0) {
-                        //noinspection ResultOfMethodCallIgnored
-                        file.delete();
-                    }
-                }
-            }
-            //noinspection ResultOfMethodCallIgnored
-            dir.delete();
-            VibyDatabase.get(this).playlistSourceDao().delete(name);
-            runOnUiThread(() -> Toast.makeText(this,
-                    R.string.playlist_deleted, Toast.LENGTH_SHORT).show());
-        });
+        libraryFileController.deletePlaylist(name);
+    }
+
+    void importFiles(List<android.net.Uri> uris, String playlist) {
+        libraryFileController.importFiles(uris, playlist);
     }
 
     /** Удалить один трек: файл + запись в БД + из очереди плеера. */
