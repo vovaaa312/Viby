@@ -38,15 +38,10 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.yausername.youtubedl_android.YoutubeDL;
-import com.yausername.youtubedl_android.YoutubeDLRequest;
-import com.yausername.youtubedl_android.mapper.VideoInfo;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -58,9 +53,8 @@ public class MainActivity extends AppCompatActivity {
     private MaterialToolbar toolbar;
     private ViewPager2 pager;
     private AppUpdateManager appUpdateManager;
-    private final ExecutorService streamResolver = Executors.newSingleThreadExecutor();
-    private final AtomicLong streamRequestSequence = new AtomicLong();
     private YoutubeSyncController youtubeSyncController;
+    private TrackStreamResolver trackStreamResolver;
 
     private ListenableFuture<MediaController> controllerFuture;
     /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
@@ -73,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
         viewModel = new ViewModelProvider(this).get(PlayerViewModel.class);
         youtubeSyncController = new YoutubeSyncController(this);
+        trackStreamResolver = new TrackStreamResolver(this);
 
         drawerLayout = findViewById(R.id.drawerLayout);
         toolbar = findViewById(R.id.toolbar);
@@ -590,8 +585,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void playPendingTrack(Track track, String playlist) {
-        if (track.videoId == null || track.videoId.isEmpty()
-                || track.sourceUrl == null || track.sourceUrl.isEmpty()) {
+        if (!TrackStreamResolver.canResolve(track)) {
             Toast.makeText(this, R.string.smart_stream_unavailable,
                     Toast.LENGTH_SHORT).show();
             return;
@@ -599,64 +593,56 @@ public class MainActivity extends AppCompatActivity {
         DownloadService.prioritizeTrack(this, playlist, track.videoId);
         Toast.makeText(this, R.string.smart_stream_preparing,
                 Toast.LENGTH_SHORT).show();
-        long requestId = streamRequestSequence.incrementAndGet();
-        streamResolver.execute(() -> {
-            try {
-                YoutubeDLRequest request = new YoutubeDLRequest(track.sourceUrl);
-                request.addOption("--no-playlist");
-                request.addOption("--format", "bestaudio[ext=m4a]/bestaudio/best");
-                if (com.example.viby.util.YtCookies.isLoggedIn(this)) {
-                    request.addOption("--cookies",
-                            com.example.viby.util.YtCookies.file(this).getAbsolutePath());
+        trackStreamResolver.resolve(track, new TrackStreamResolver.Callback() {
+            @Override
+            public void onResolved(String streamUrl) {
+                playResolvedStream(track, playlist, streamUrl);
+            }
+
+            @Override
+            public void onFailure(Exception error) {
+                android.util.Log.w(TAG, "Could not resolve stream", error);
+                if (!isDestroyed()) {
+                    Toast.makeText(MainActivity.this, R.string.smart_stream_failed,
+                            Toast.LENGTH_LONG).show();
                 }
-                VideoInfo info = YoutubeDL.getInstance().getInfo(request);
-                String streamUrl = info.getUrl();
-                if (streamUrl == null || streamUrl.isEmpty()) {
-                    throw new IllegalStateException("yt-dlp returned no stream URL");
-                }
-                runOnUiThread(() -> {
-                    if (isDestroyed() || requestId != streamRequestSequence.get()) {
-                        return;
-                    }
-                    MediaController controller = viewModel.controller.getValue();
-                    List<Track> latestTracks = viewModel.tracks.getValue();
-                    if (controller == null || latestTracks == null) {
-                        return;
-                    }
-                    List<MediaItem> items = new ArrayList<>();
-                    int startIndex = 0;
-                    for (Track candidate : latestTracks) {
-                        if (candidate.id == track.id) {
-                            if (isPlayableLocal(candidate)) {
-                                items.add(toMediaItem(candidate));
-                            } else {
-                                items.add(toStreamMediaItem(candidate, streamUrl));
-                            }
-                            startIndex = items.size() - 1;
-                        } else if (isPlayableLocal(candidate)) {
-                            items.add(toMediaItem(candidate));
-                        }
-                    }
-                    if (items.isEmpty()) {
-                        return;
-                    }
-                    loadedPlaylist = playlist;
-                    viewModel.setQueuePlaylist(playlist);
-                    viewModel.setQueueCustomized(true);
-                    controller.setMediaItems(items, startIndex, 0L);
-                    controller.prepare();
-                    controller.play();
-                });
-            } catch (Exception e) {
-                android.util.Log.w("MainActivity", "Could not resolve stream", e);
-                runOnUiThread(() -> {
-                    if (!isDestroyed() && requestId == streamRequestSequence.get()) {
-                        Toast.makeText(this, R.string.smart_stream_failed,
-                                Toast.LENGTH_LONG).show();
-                    }
-                });
             }
         });
+    }
+
+    private void playResolvedStream(Track track, String playlist,
+                                    String streamUrl) {
+        if (isDestroyed()) {
+            return;
+        }
+        MediaController controller = viewModel.controller.getValue();
+        List<Track> latestTracks = viewModel.tracks.getValue();
+        if (controller == null || latestTracks == null) {
+            return;
+        }
+        List<MediaItem> items = new ArrayList<>();
+        int startIndex = 0;
+        for (Track candidate : latestTracks) {
+            if (candidate.id == track.id) {
+                if (isPlayableLocal(candidate)) {
+                    items.add(toMediaItem(candidate));
+                } else {
+                    items.add(toStreamMediaItem(candidate, streamUrl));
+                }
+                startIndex = items.size() - 1;
+            } else if (isPlayableLocal(candidate)) {
+                items.add(toMediaItem(candidate));
+            }
+        }
+        if (items.isEmpty()) {
+            return;
+        }
+        loadedPlaylist = playlist;
+        viewModel.setQueuePlaylist(playlist);
+        viewModel.setQueueCustomized(true);
+        controller.setMediaItems(items, startIndex, 0L);
+        controller.prepare();
+        controller.play();
     }
 
     /** Добавить треки в конец очереди воспроизведения (без изменения БД). */
@@ -790,8 +776,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        streamRequestSequence.incrementAndGet();
-        streamResolver.shutdownNow();
+        trackStreamResolver.destroy();
         youtubeSyncController.destroy();
         if (appUpdateManager != null) {
             appUpdateManager.close();
