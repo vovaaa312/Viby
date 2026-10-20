@@ -38,9 +38,8 @@ public final class YoutubeLyricsRepository {
     private static final int MAX_CAPTION_CHARS = 2_000_000;
     private static final int MAX_MUSIC_RESPONSE_CHARS = 8_000_000;
     private static final String YTM_API = "https://music.youtube.com/youtubei/v1/";
-    // Public web-client key used by YouTube Music itself (not a project secret).
-    private static final String YTM_API_KEY = "";
     private static final Map<String, Lyrics> memoryCache = new ConcurrentHashMap<>();
+    private static volatile String musicApiKey;
 
     public enum MissingReason {
         NO_YOUTUBE_SOURCE,
@@ -174,6 +173,7 @@ public final class YoutubeLyricsRepository {
     @Nullable
     private static MusicLyrics loadYoutubeMusicLyrics(String videoId,
                                                        @Nullable String cookies) throws Exception {
+        String apiKey = loadMusicApiKey(cookies);
         JSONObject body = ytmContext();
         body.put("videoId", videoId);
         body.put("playlistId", "RDAMVM" + videoId);
@@ -185,14 +185,34 @@ public final class YoutubeLyricsRepository {
                         .put("hasPersistentPlaylistPanel", true)
                         .put("musicVideoType", "MUSIC_VIDEO_TYPE_ATV")));
 
-        JSONObject next = postYtm("next", body, cookies);
+        JSONObject next = postYtm("next", body, cookies, apiKey);
         String browseId = findLyricsBrowseId(next);
         if (browseId == null) {
             return null;
         }
 
         JSONObject browseBody = ytmContext().put("browseId", browseId);
-        return findMusicLyrics(postYtm("browse", browseBody, cookies));
+        return findMusicLyrics(postYtm("browse", browseBody, cookies, apiKey));
+    }
+
+    private static String loadMusicApiKey(@Nullable String cookies) throws Exception {
+        String cached = musicApiKey;
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (YoutubeLyricsRepository.class) {
+            if (musicApiKey == null) {
+                String page = download("https://music.youtube.com/?hl="
+                                + supportedMusicLanguage(), cookies,
+                        MAX_MUSIC_RESPONSE_CHARS);
+                musicApiKey = YoutubeMusicConfig.extractApiKey(page);
+                if (musicApiKey == null) {
+                    throw new IllegalStateException(
+                            "YouTube Music client configuration is unavailable");
+                }
+            }
+            return musicApiKey;
+        }
     }
 
     private static JSONObject ytmContext() throws Exception {
@@ -220,9 +240,10 @@ public final class YoutubeLyricsRepository {
     }
 
     private static JSONObject postYtm(String endpoint, JSONObject body,
-                                      @Nullable String cookies) throws Exception {
+                                      @Nullable String cookies,
+                                      String apiKey) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(
-                YTM_API + endpoint + "?alt=json&key=" + YTM_API_KEY).openConnection();
+                YTM_API + endpoint + "?alt=json&key=" + apiKey).openConnection();
         connection.setConnectTimeout(15_000);
         connection.setReadTimeout(20_000);
         connection.setRequestMethod("POST");
