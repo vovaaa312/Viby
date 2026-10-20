@@ -7,7 +7,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 import android.widget.Toast;
 
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -30,14 +29,11 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.viby.R;
 import com.example.viby.VibyApp;
-import com.example.viby.data.PlaylistSource;
 import com.example.viby.data.Track;
 import com.example.viby.data.VibyDatabase;
 import com.example.viby.download.DownloadService;
 import com.example.viby.playback.PlaybackService;
-import com.example.viby.sync.YoutubePlaylistSync;
 import com.example.viby.update.AppUpdateManager;
-import com.google.android.gms.common.api.ApiException;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -63,10 +59,8 @@ public class MainActivity extends AppCompatActivity {
     private ViewPager2 pager;
     private AppUpdateManager appUpdateManager;
     private final ExecutorService streamResolver = Executors.newSingleThreadExecutor();
-    private final ExecutorService youtubeSyncExecutor = Executors.newSingleThreadExecutor();
     private final AtomicLong streamRequestSequence = new AtomicLong();
-    private YoutubePlaylistSync youtubePlaylistSync;
-    private YoutubeAuthorizationController youtubeAuthorizationController;
+    private YoutubeSyncController youtubeSyncController;
 
     private ListenableFuture<MediaController> controllerFuture;
     /** Плейлист, который сейчас загружен в очередь плеера (может отличаться от просматриваемого). */
@@ -75,11 +69,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        youtubeAuthorizationController = new YoutubeAuthorizationController(this);
         setContentView(R.layout.activity_main);
 
         viewModel = new ViewModelProvider(this).get(PlayerViewModel.class);
-        youtubePlaylistSync = new YoutubePlaylistSync(this);
+        youtubeSyncController = new YoutubeSyncController(this);
 
         drawerLayout = findViewById(R.id.drawerLayout);
         toolbar = findViewById(R.id.toolbar);
@@ -87,11 +80,13 @@ public class MainActivity extends AppCompatActivity {
         toolbar.inflateMenu(R.menu.menu_main);
         toolbar.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.action_save_radio) {
-                showPlaylistSyncDialog();
+                youtubeSyncController.showPlaylistDialog(
+                        viewModel.getActivePlaylistName());
                 return true;
             }
             if (item.getItemId() == R.id.action_sync_missing_youtube) {
-                syncMissingTracksToYoutube();
+                youtubeSyncController.syncMissing(
+                        viewModel.getActivePlaylistName());
                 return true;
             }
             if (item.getItemId() == R.id.action_queue) {
@@ -173,7 +168,8 @@ public class MainActivity extends AppCompatActivity {
 
         findViewById(R.id.drawerPlaylistSync).setOnClickListener(v -> {
             drawerLayout.closeDrawers();
-            showPlaylistSyncDialog();
+            youtubeSyncController.showPlaylistDialog(
+                    viewModel.getActivePlaylistName());
         });
 
         RecyclerView playlistsList = findViewById(R.id.playlistsList);
@@ -215,192 +211,9 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // ------------------------------------------------ YouTube playlist sync
-
-    private void showPlaylistSyncDialog() {
-        String playlist = viewModel.getActivePlaylistName();
-        if (playlist == null) {
-            return;
-        }
-        VibyDatabase.dbExecutor.execute(() -> {
-            com.example.viby.data.PlaylistSource source = VibyDatabase.get(this)
-                    .playlistSourceDao().getSync(playlist);
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) {
-                    return;
-                }
-                if (source == null) {
-                    Toast.makeText(this, R.string.refresh_no_source,
-                            Toast.LENGTH_LONG).show();
-                    return;
-                }
-                if (source.youtubeSyncEnabled) {
-                    new MaterialAlertDialogBuilder(this)
-                            .setTitle(R.string.youtube_sync_title)
-                            .setMessage(getString(
-                                    R.string.youtube_sync_enabled_message, playlist))
-                            .setPositiveButton(R.string.youtube_sync_disable,
-                                    (dialog, which) -> disableYoutubeSync(playlist))
-                            .setNegativeButton(android.R.string.cancel, null)
-                            .show();
-                } else if (isUnsavedRadio(source)) {
-                    new MaterialAlertDialogBuilder(this)
-                            .setTitle(R.string.track_radio_save_title)
-                            .setMessage(R.string.track_radio_save_message)
-                            .setPositiveButton(R.string.track_radio_save,
-                                    (dialog, which) -> saveRadioToYoutube(playlist))
-                            .setNegativeButton(android.R.string.cancel, null)
-                            .show();
-                } else {
-                    new MaterialAlertDialogBuilder(this)
-                            .setTitle(R.string.youtube_sync_title)
-                            .setMessage(getString(
-                                    R.string.youtube_sync_enable_message, playlist))
-                            .setPositiveButton(R.string.youtube_sync_enable,
-                                    (dialog, which) -> enableYoutubeSync(playlist))
-                            .setNegativeButton(android.R.string.cancel, null)
-                            .show();
-                }
-            });
-        });
-    }
-
-    private static boolean isUnsavedRadio(
-            com.example.viby.data.PlaylistSource source) {
-        return com.example.viby.util.YoutubeUrlParser.isRadioMixUrl(source.sourceUrl)
-                && (source.youtubePlaylistId == null
-                || com.example.viby.util.YoutubeUrlParser.isRadioPlaylistId(
-                        source.youtubePlaylistId));
-    }
-
     private void updateYoutubeActions() {
-        PlaylistSource source = viewModel.playlistSource.getValue();
-        boolean unsavedRadio = source != null && isUnsavedRadio(source);
-        android.view.MenuItem saveRadio = toolbar.getMenu()
-                .findItem(R.id.action_save_radio);
-        if (saveRadio != null) {
-            saveRadio.setVisible(unsavedRadio);
-        }
-        android.view.MenuItem syncMissing = toolbar.getMenu()
-                .findItem(R.id.action_sync_missing_youtube);
-        if (syncMissing != null) {
-            List<Track> tracks = viewModel.tracks.getValue();
-            boolean missing = source != null && (source.youtubeSyncEnabled
-                    ? YoutubePlaylistSync.hasMissingYoutubeTracks(tracks)
-                    : YoutubePlaylistSync.hasLocallyAddedYoutubeTracks(tracks));
-            syncMissing.setVisible(!unsavedRadio
-                    && YoutubePlaylistSync.hasOriginalYoutubePlaylist(source)
-                    && missing);
-        }
-    }
-
-    private void syncMissingTracksToYoutube() {
-        String playlist = viewModel.getActivePlaylistName();
-        if (playlist == null) {
-            return;
-        }
-        Toast.makeText(this, R.string.youtube_sync_authorizing,
-                Toast.LENGTH_SHORT).show();
-        youtubeAuthorizationController.request(accessToken -> {
-            Toast.makeText(this, R.string.youtube_sync_missing,
-                    Toast.LENGTH_LONG).show();
-            youtubeSyncExecutor.execute(() -> {
-                try {
-                    PlaylistSource source = VibyDatabase.get(this)
-                            .playlistSourceDao().getSync(playlist);
-                    if (source != null && !source.youtubeSyncEnabled) {
-                        youtubePlaylistSync.enable(playlist, accessToken);
-                    }
-                    YoutubePlaylistSync.MissingTracksResult result =
-                            youtubePlaylistSync.syncMissingTracks(
-                                    playlist, accessToken);
-                    showMissingTracksResult(result);
-                } catch (Exception error) {
-                    showYoutubeSyncError(error);
-                }
-            });
-        }, this::showYoutubeSyncError);
-    }
-
-    private void showMissingTracksResult(
-            YoutubePlaylistSync.MissingTracksResult result) {
-        runOnUiThread(() -> {
-            if (result.failedCount == 0) {
-                Toast.makeText(this,
-                        getString(R.string.youtube_sync_missing_added,
-                                result.addedCount),
-                        Toast.LENGTH_LONG).show();
-            } else {
-                Toast.makeText(this,
-                        getString(R.string.youtube_sync_missing_partial,
-                                result.addedCount, result.failedCount,
-                                result.firstError != null
-                                        ? result.firstError : "YouTube API"),
-                        Toast.LENGTH_LONG).show();
-            }
-        });
-    }
-
-    private void saveRadioToYoutube(String playlist) {
-        Toast.makeText(this, R.string.youtube_sync_authorizing,
-                Toast.LENGTH_SHORT).show();
-        youtubeAuthorizationController.request(accessToken -> {
-            Toast.makeText(this, R.string.track_radio_saving,
-                    Toast.LENGTH_LONG).show();
-            youtubeSyncExecutor.execute(() -> {
-                try {
-                    YoutubePlaylistSync.SaveRadioResult result = youtubePlaylistSync
-                            .saveRadioToYoutube(playlist, accessToken);
-                    runOnUiThread(() -> {
-                        if (result.failedCount == 0) {
-                            Toast.makeText(this,
-                                    getString(R.string.track_radio_saved,
-                                            result.remoteTitle, result.addedCount),
-                                    Toast.LENGTH_LONG).show();
-                        } else {
-                            Toast.makeText(this,
-                                    getString(R.string.track_radio_saved_partial,
-                                            result.remoteTitle, result.addedCount,
-                                            result.failedCount,
-                                            result.firstError != null
-                                                    ? result.firstError : "YouTube API"),
-                                    Toast.LENGTH_LONG).show();
-                        }
-                    });
-                } catch (Exception error) {
-                    showYoutubeSyncError(error);
-                }
-            });
-        }, this::showYoutubeSyncError);
-    }
-
-    private void enableYoutubeSync(String playlist) {
-        Toast.makeText(this, R.string.youtube_sync_authorizing,
-                Toast.LENGTH_SHORT).show();
-        youtubeAuthorizationController.request(accessToken -> {
-            Toast.makeText(this, R.string.youtube_sync_enabling,
-                    Toast.LENGTH_LONG).show();
-            youtubeSyncExecutor.execute(() -> {
-                try {
-                    YoutubePlaylistSync.EnableResult result =
-                            youtubePlaylistSync.enable(playlist, accessToken);
-                    runOnUiThread(() -> Toast.makeText(this,
-                            getString(R.string.youtube_sync_enabled,
-                                    result.remoteTitle, result.linkedTracks),
-                            Toast.LENGTH_LONG).show());
-                } catch (Exception e) {
-                    showYoutubeSyncError(e);
-                }
-            });
-        }, this::showYoutubeSyncError);
-    }
-
-    private void disableYoutubeSync(String playlist) {
-        VibyDatabase.dbExecutor.execute(() -> {
-            youtubePlaylistSync.disable(playlist);
-            runOnUiThread(() -> Toast.makeText(this,
-                    R.string.youtube_sync_disabled, Toast.LENGTH_SHORT).show());
-        });
+        youtubeSyncController.updateActions(toolbar.getMenu(),
+                viewModel.playlistSource.getValue(), viewModel.tracks.getValue());
     }
 
     /** Creates a finite local YouTube Mix playlist seeded by the selected track. */
@@ -448,117 +261,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** Entry point used by the playlist screen for a single YouTube URL. */
     void addTrackByUrl(String url, String playlist) {
-        VibyDatabase.dbExecutor.execute(() -> {
-            com.example.viby.data.PlaylistSource source = VibyDatabase.get(this)
-                    .playlistSourceDao().getSync(playlist);
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) {
-                    return;
-                }
-                if (source == null || !source.youtubeSyncEnabled) {
-                    DuplicateTrackPrompt.enqueue(this, url, playlist,
-                            false, null);
-                    return;
-                }
-                String[] choices = {
-                        getString(R.string.youtube_sync_add_both),
-                        getString(R.string.youtube_sync_local_only),
-                };
-                new MaterialAlertDialogBuilder(this)
-                        .setTitle(R.string.youtube_sync_add_title)
-                        .setItems(choices, (dialog, which) -> {
-                            if (which == 0) {
-                                addTrackToYoutube(url, playlist);
-                            } else {
-                                DuplicateTrackPrompt.enqueue(this, url,
-                                        playlist, false, null);
-                            }
-                        })
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show();
-            });
-        });
-    }
-
-    private void addTrackToYoutube(String url, String playlist) {
-        String videoId = com.example.viby.util.YoutubeUrlParser.videoId(url);
-        if (videoId == null) {
-            Toast.makeText(this, R.string.error_invalid_url,
-                    Toast.LENGTH_SHORT).show();
-            return;
-        }
-        VibyDatabase.dbExecutor.execute(() -> {
-            Track duplicate = VibyDatabase.get(this).trackDao()
-                    .getDownloadedByVideoIdSync(playlist, videoId);
-            runOnUiThread(() -> {
-                if (duplicate == null) {
-                    performAddTrackToYoutube(url, playlist);
-                    return;
-                }
-                new MaterialAlertDialogBuilder(this)
-                        .setTitle(R.string.duplicate_track_title)
-                        .setMessage(getString(R.string.duplicate_track_message,
-                                duplicate.title, playlist))
-                        .setPositiveButton(R.string.duplicate_track_add,
-                                (dialog, which) ->
-                                        performAddTrackToYoutube(url, playlist))
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show();
-            });
-        });
-    }
-
-    private void performAddTrackToYoutube(String url, String playlist) {
-        Toast.makeText(this, R.string.youtube_sync_authorizing,
-                Toast.LENGTH_SHORT).show();
-        youtubeAuthorizationController.request(accessToken -> {
-            Toast.makeText(this, R.string.youtube_sync_adding,
-                    Toast.LENGTH_SHORT).show();
-            youtubeSyncExecutor.execute(() -> {
-                try {
-                    YoutubePlaylistSync.AddResult result = youtubePlaylistSync
-                            .addTrackAtStart(playlist, url, accessToken);
-                    runOnUiThread(() -> {
-                        if (result.downloadRequired) {
-                            DownloadService.enqueue(this, url, playlist, false);
-                        }
-                        Toast.makeText(this, R.string.youtube_sync_added,
-                                Toast.LENGTH_LONG).show();
-                    });
-                } catch (Exception e) {
-                    showYoutubeSyncError(e);
-                }
-            });
-        }, this::showYoutubeSyncError);
-    }
-
-    private void showYoutubeSyncError(Exception error) {
-        Log.w(TAG, "YouTube synchronization failed", error);
-        runOnUiThread(() -> {
-            if (isFinishing() || isDestroyed()) {
-                return;
-            }
-            String message;
-            if (error instanceof ApiException
-                    && ((ApiException) error).getStatusCode() == 10) {
-                message = getString(R.string.youtube_sync_oauth_not_configured);
-            } else if (error instanceof ApiException) {
-                ApiException apiError = (ApiException) error;
-                message = "Google OAuth " + apiError.getStatusCode();
-                if (apiError.getStatusMessage() != null
-                        && !apiError.getStatusMessage().isEmpty()) {
-                    message += ": " + apiError.getStatusMessage();
-                }
-            } else {
-                message = error.getMessage();
-            }
-            if (message == null || message.trim().isEmpty()) {
-                message = error.getClass().getSimpleName();
-            }
-            Toast.makeText(this,
-                    getString(R.string.youtube_sync_failed, message),
-                    Toast.LENGTH_LONG).show();
-        });
+        youtubeSyncController.addTrackByUrl(url, playlist);
     }
 
     // ------------------------------------------------------- media controller
@@ -1003,43 +706,8 @@ public class MainActivity extends AppCompatActivity {
     /** Добавить треки в другой плейлист, сохранив исходные записи и общий медиафайл. */
     void copyTracksToPlaylist(List<Track> tracks, String targetPlaylist) {
         String target = com.example.viby.util.StorageHelper.sanitize(targetPlaylist);
-        VibyDatabase.dbExecutor.execute(() -> {
-            PlaylistSource source = VibyDatabase.get(this)
-                    .playlistSourceDao().getSync(target);
-            ArrayList<String> youtubeVideoIds = new ArrayList<>();
-            for (Track track : tracks) {
-                if (!target.equals(track.playlistName)
-                        && track.videoId != null && !track.videoId.isEmpty()) {
-                    youtubeVideoIds.add(track.videoId);
-                }
-            }
-            runOnUiThread(() -> {
-                if (!YoutubePlaylistSync.hasOriginalYoutubePlaylist(source)
-                        || youtubeVideoIds.isEmpty()) {
-                    copyTracksLocally(tracks, target, null);
-                    return;
-                }
-                String[] choices = {
-                        getString(R.string.youtube_sync_add_both),
-                        getString(R.string.youtube_sync_local_only),
-                };
-                new MaterialAlertDialogBuilder(this)
-                        .setTitle(getString(
-                                R.string.youtube_sync_copy_title, target))
-                        .setItems(choices, (dialog, which) -> {
-                            if (which == 0) {
-                                copyTracksLocally(tracks, target,
-                                        () -> syncCopiedTracksToYoutube(
-                                                target, youtubeVideoIds,
-                                                !source.youtubeSyncEnabled));
-                            } else {
-                                copyTracksLocally(tracks, target, null);
-                            }
-                        })
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show();
-            });
-        });
+        youtubeSyncController.offerTrackCopy(tracks, target,
+                afterCopy -> copyTracksLocally(tracks, target, afterCopy));
     }
 
     private void copyTracksLocally(List<Track> tracks, String target,
@@ -1058,30 +726,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void syncCopiedTracksToYoutube(String playlist,
-                                            List<String> videoIds,
-                                            boolean enableFirst) {
-        Toast.makeText(this, R.string.youtube_sync_authorizing,
-                Toast.LENGTH_SHORT).show();
-        youtubeAuthorizationController.request(accessToken -> {
-            Toast.makeText(this, R.string.youtube_sync_missing,
-                    Toast.LENGTH_LONG).show();
-            youtubeSyncExecutor.execute(() -> {
-                try {
-                    if (enableFirst) {
-                        youtubePlaylistSync.enable(playlist, accessToken);
-                    }
-                    YoutubePlaylistSync.MissingTracksResult result =
-                            youtubePlaylistSync.syncMissingTracks(
-                                    playlist, videoIds, accessToken);
-                    showMissingTracksResult(result);
-                } catch (Exception error) {
-                    showYoutubeSyncError(error);
-                }
-            });
-        }, this::showYoutubeSyncError);
-    }
-
     /** Убрать записи из плейлиста (файлы остаются на диске). */
     void removeTracksFromPlaylist(List<Track> tracks) {
         deleteTracksWithSyncChoice(tracks, false);
@@ -1093,35 +737,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void deleteTracksWithSyncChoice(List<Track> tracks, boolean deleteFiles) {
-        if (tracks.isEmpty()) {
-            return;
-        }
-        String playlist = tracks.get(0).playlistName;
-        VibyDatabase.dbExecutor.execute(() -> {
-            com.example.viby.data.PlaylistSource source = VibyDatabase.get(this)
-                    .playlistSourceDao().getSync(playlist);
-            runOnUiThread(() -> {
-                if (source == null || !source.youtubeSyncEnabled) {
-                    deleteTracksLocally(tracks, deleteFiles);
-                    return;
-                }
-                String[] choices = {
-                        getString(R.string.youtube_sync_delete_both),
-                        getString(R.string.youtube_sync_local_only),
-                };
-                new MaterialAlertDialogBuilder(this)
-                        .setTitle(R.string.youtube_sync_delete_title)
-                        .setItems(choices, (dialog, which) -> {
-                            if (which == 0) {
-                                deleteTracksFromYoutube(playlist, tracks, deleteFiles);
-                            } else {
-                                deleteTracksLocally(tracks, deleteFiles);
-                            }
-                        })
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show();
-            });
-        });
+        youtubeSyncController.deleteTracksWithChoice(tracks, deleteFiles,
+                () -> deleteTracksLocally(tracks, deleteFiles), this::removeFromQueue);
     }
 
     private void deleteTracksLocally(List<Track> tracks, boolean deleteFiles) {
@@ -1138,40 +755,6 @@ public class MainActivity extends AppCompatActivity {
                     getString(R.string.tracks_deleted, tracks.size()),
                     Toast.LENGTH_SHORT).show());
         });
-    }
-
-    private void deleteTracksFromYoutube(String playlist, List<Track> tracks,
-                                         boolean deleteFiles) {
-        Toast.makeText(this, R.string.youtube_sync_authorizing,
-                Toast.LENGTH_SHORT).show();
-        youtubeAuthorizationController.request(accessToken -> {
-            Toast.makeText(this, R.string.youtube_sync_deleting,
-                    Toast.LENGTH_LONG).show();
-            youtubeSyncExecutor.execute(() -> {
-                try {
-                    YoutubePlaylistSync.DeleteResult result = youtubePlaylistSync
-                            .deleteTracks(playlist, tracks, deleteFiles, accessToken);
-                    runOnUiThread(() -> {
-                        removeFromQueue(result.removed);
-                        if (result.failedCount == 0) {
-                            Toast.makeText(this,
-                                    getString(R.string.tracks_deleted,
-                                            result.removed.size()),
-                                    Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(this,
-                                    getString(R.string.youtube_sync_delete_partial,
-                                            result.removed.size(), result.failedCount,
-                                            result.firstError != null
-                                                    ? result.firstError : "YouTube API"),
-                                    Toast.LENGTH_LONG).show();
-                        }
-                    });
-                } catch (Exception e) {
-                    showYoutubeSyncError(e);
-                }
-            });
-        }, this::showYoutubeSyncError);
     }
 
     private static void deleteFileIfUnreferenced(
@@ -1209,8 +792,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         streamRequestSequence.incrementAndGet();
         streamResolver.shutdownNow();
-        youtubeSyncExecutor.shutdownNow();
-        youtubeAuthorizationController.destroy();
+        youtubeSyncController.destroy();
         if (appUpdateManager != null) {
             appUpdateManager.close();
             appUpdateManager = null;
