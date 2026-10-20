@@ -90,6 +90,10 @@ public class MainActivity extends AppCompatActivity {
                 showPlaylistSyncDialog();
                 return true;
             }
+            if (item.getItemId() == R.id.action_sync_missing_youtube) {
+                syncMissingTracksToYoutube();
+                return true;
+            }
             if (item.getItemId() == R.id.action_queue) {
                 new PlaybackQueueDialogFragment().show(
                         getSupportFragmentManager(), "playback_queue");
@@ -122,8 +126,11 @@ public class MainActivity extends AppCompatActivity {
         appUpdateManager.start();
 
         viewModel.getActivePlaylist().observe(this, name -> toolbar.setTitle(name));
-        viewModel.playlistSource.observe(this, this::updateRadioSaveAction);
-        viewModel.tracks.observe(this, tracks -> syncQueue());
+        viewModel.playlistSource.observe(this, source -> updateYoutubeActions());
+        viewModel.tracks.observe(this, tracks -> {
+            syncQueue();
+            updateYoutubeActions();
+        });
 
         requestNotificationPermissionIfNeeded();
     }
@@ -266,11 +273,72 @@ public class MainActivity extends AppCompatActivity {
                         source.youtubePlaylistId));
     }
 
-    private void updateRadioSaveAction(PlaylistSource source) {
-        android.view.MenuItem item = toolbar.getMenu().findItem(R.id.action_save_radio);
-        if (item != null) {
-            item.setVisible(source != null && isUnsavedRadio(source));
+    private void updateYoutubeActions() {
+        PlaylistSource source = viewModel.playlistSource.getValue();
+        boolean unsavedRadio = source != null && isUnsavedRadio(source);
+        android.view.MenuItem saveRadio = toolbar.getMenu()
+                .findItem(R.id.action_save_radio);
+        if (saveRadio != null) {
+            saveRadio.setVisible(unsavedRadio);
         }
+        android.view.MenuItem syncMissing = toolbar.getMenu()
+                .findItem(R.id.action_sync_missing_youtube);
+        if (syncMissing != null) {
+            List<Track> tracks = viewModel.tracks.getValue();
+            boolean missing = source != null && (source.youtubeSyncEnabled
+                    ? YoutubePlaylistSync.hasMissingYoutubeTracks(tracks)
+                    : YoutubePlaylistSync.hasLocallyAddedYoutubeTracks(tracks));
+            syncMissing.setVisible(!unsavedRadio
+                    && YoutubePlaylistSync.hasOriginalYoutubePlaylist(source)
+                    && missing);
+        }
+    }
+
+    private void syncMissingTracksToYoutube() {
+        String playlist = viewModel.getActivePlaylistName();
+        if (playlist == null) {
+            return;
+        }
+        Toast.makeText(this, R.string.youtube_sync_authorizing,
+                Toast.LENGTH_SHORT).show();
+        youtubeAuthorizationController.request(accessToken -> {
+            Toast.makeText(this, R.string.youtube_sync_missing,
+                    Toast.LENGTH_LONG).show();
+            youtubeSyncExecutor.execute(() -> {
+                try {
+                    PlaylistSource source = VibyDatabase.get(this)
+                            .playlistSourceDao().getSync(playlist);
+                    if (source != null && !source.youtubeSyncEnabled) {
+                        youtubePlaylistSync.enable(playlist, accessToken);
+                    }
+                    YoutubePlaylistSync.MissingTracksResult result =
+                            youtubePlaylistSync.syncMissingTracks(
+                                    playlist, accessToken);
+                    showMissingTracksResult(result);
+                } catch (Exception error) {
+                    showYoutubeSyncError(error);
+                }
+            });
+        }, this::showYoutubeSyncError);
+    }
+
+    private void showMissingTracksResult(
+            YoutubePlaylistSync.MissingTracksResult result) {
+        runOnUiThread(() -> {
+            if (result.failedCount == 0) {
+                Toast.makeText(this,
+                        getString(R.string.youtube_sync_missing_added,
+                                result.addedCount),
+                        Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this,
+                        getString(R.string.youtube_sync_missing_partial,
+                                result.addedCount, result.failedCount,
+                                result.firstError != null
+                                        ? result.firstError : "YouTube API"),
+                        Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void saveRadioToYoutube(String playlist) {
@@ -936,12 +1004,82 @@ public class MainActivity extends AppCompatActivity {
     void copyTracksToPlaylist(List<Track> tracks, String targetPlaylist) {
         String target = com.example.viby.util.StorageHelper.sanitize(targetPlaylist);
         VibyDatabase.dbExecutor.execute(() -> {
+            PlaylistSource source = VibyDatabase.get(this)
+                    .playlistSourceDao().getSync(target);
+            ArrayList<String> youtubeVideoIds = new ArrayList<>();
+            for (Track track : tracks) {
+                if (!target.equals(track.playlistName)
+                        && track.videoId != null && !track.videoId.isEmpty()) {
+                    youtubeVideoIds.add(track.videoId);
+                }
+            }
+            runOnUiThread(() -> {
+                if (!YoutubePlaylistSync.hasOriginalYoutubePlaylist(source)
+                        || youtubeVideoIds.isEmpty()) {
+                    copyTracksLocally(tracks, target, null);
+                    return;
+                }
+                String[] choices = {
+                        getString(R.string.youtube_sync_add_both),
+                        getString(R.string.youtube_sync_local_only),
+                };
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle(getString(
+                                R.string.youtube_sync_copy_title, target))
+                        .setItems(choices, (dialog, which) -> {
+                            if (which == 0) {
+                                copyTracksLocally(tracks, target,
+                                        () -> syncCopiedTracksToYoutube(
+                                                target, youtubeVideoIds,
+                                                !source.youtubeSyncEnabled));
+                            } else {
+                                copyTracksLocally(tracks, target, null);
+                            }
+                        })
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            });
+        });
+    }
+
+    private void copyTracksLocally(List<Track> tracks, String target,
+                                   Runnable afterCopy) {
+        VibyDatabase.dbExecutor.execute(() -> {
             var dao = VibyDatabase.get(this).trackDao();
             int total = com.example.viby.data.PlaylistTrackCopier.create(dao)
                     .copy(tracks, target);
-            runOnUiThread(() -> Toast.makeText(this,
-                    getString(R.string.tracks_copied, total), Toast.LENGTH_SHORT).show());
+            runOnUiThread(() -> {
+                Toast.makeText(this, getString(R.string.tracks_copied, total),
+                        Toast.LENGTH_SHORT).show();
+                if (afterCopy != null) {
+                    afterCopy.run();
+                }
+            });
         });
+    }
+
+    private void syncCopiedTracksToYoutube(String playlist,
+                                            List<String> videoIds,
+                                            boolean enableFirst) {
+        Toast.makeText(this, R.string.youtube_sync_authorizing,
+                Toast.LENGTH_SHORT).show();
+        youtubeAuthorizationController.request(accessToken -> {
+            Toast.makeText(this, R.string.youtube_sync_missing,
+                    Toast.LENGTH_LONG).show();
+            youtubeSyncExecutor.execute(() -> {
+                try {
+                    if (enableFirst) {
+                        youtubePlaylistSync.enable(playlist, accessToken);
+                    }
+                    YoutubePlaylistSync.MissingTracksResult result =
+                            youtubePlaylistSync.syncMissingTracks(
+                                    playlist, videoIds, accessToken);
+                    showMissingTracksResult(result);
+                } catch (Exception error) {
+                    showYoutubeSyncError(error);
+                }
+            });
+        }, this::showYoutubeSyncError);
     }
 
     /** Убрать записи из плейлиста (файлы остаются на диске). */

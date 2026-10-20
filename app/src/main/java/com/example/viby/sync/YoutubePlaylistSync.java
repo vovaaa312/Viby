@@ -76,6 +76,19 @@ public final class YoutubePlaylistSync {
         }
     }
 
+    public static final class MissingTracksResult {
+        public final int addedCount;
+        public final int failedCount;
+        @Nullable public final String firstError;
+
+        MissingTracksResult(int addedCount, int failedCount,
+                            @Nullable String firstError) {
+            this.addedCount = addedCount;
+            this.failedCount = failedCount;
+            this.firstError = firstError;
+        }
+    }
+
     public YoutubePlaylistSync(Context context) {
         this(context, new YoutubePlaylistApi());
     }
@@ -229,6 +242,67 @@ public final class YoutubePlaylistSync {
         return new AddResult(downloaded == null);
     }
 
+    /** Adds every local YouTube-backed occurrence which is absent from the remote playlist. */
+    public MissingTracksResult syncMissingTracks(String localPlaylist,
+                                                  String accessToken)
+            throws Exception {
+        return syncMissingTracks(localPlaylist, null, accessToken);
+    }
+
+    /** Adds only requested video occurrences; null means all missing YouTube-backed tracks. */
+    public MissingTracksResult syncMissingTracks(String localPlaylist,
+                                                  @Nullable List<String> requestedVideoIds,
+                                                  String accessToken)
+            throws Exception {
+        PlaylistSource source = requireEnabledSource(localPlaylist);
+        String playlistId = playlistId(source);
+        YoutubePlaylistApi.OwnedPlaylist owned =
+                api.findOwnedPlaylist(accessToken, playlistId);
+        if (owned == null) {
+            throw new IllegalStateException(
+                    context.getString(R.string.youtube_sync_not_owner));
+        }
+
+        List<YoutubePlaylistApi.PlaylistItem> remote =
+                api.listItems(accessToken, playlistId);
+        TrackDao dao = database.trackDao();
+        List<Track> tracks = dao.getPlaylistSync(localPlaylist);
+        linkTracks(tracks, remote, false);
+        List<Track> missing = missingYoutubeTracks(tracks, requestedVideoIds);
+
+        int added = 0;
+        int failed = 0;
+        String firstError = null;
+        for (Track track : missing) {
+            try {
+                int position = Math.max(0,
+                        Math.min(track.position, remote.size() + added));
+                YoutubePlaylistApi.PlaylistItem item = api.insertAtPosition(
+                        accessToken, playlistId, track.videoId, position);
+                track.youtubePlaylistItemId = item.id;
+                track.youtubePosition = item.position;
+                added++;
+            } catch (Exception error) {
+                failed++;
+                if (firstError == null) {
+                    firstError = error.getMessage();
+                }
+            }
+        }
+
+        if (added > 0) {
+            try {
+                linkTracks(tracks, api.listItems(accessToken, playlistId), false);
+            } catch (Exception ignored) {
+                // Insert responses already carry stable item ids; refresh can happen later.
+            }
+        }
+        if (!tracks.isEmpty()) {
+            dao.updateAll(tracks);
+        }
+        return new MissingTracksResult(added, failed, firstError);
+    }
+
     public DeleteResult deleteTracks(String localPlaylist, List<Track> selected,
                                      boolean deleteFiles, String accessToken)
             throws Exception {
@@ -342,6 +416,67 @@ public final class YoutubePlaylistSync {
             }
         }
         return matches.size();
+    }
+
+    public static boolean hasMissingYoutubeTracks(@Nullable List<Track> tracks) {
+        return tracks != null && !missingYoutubeTracks(tracks, null).isEmpty();
+    }
+
+    /** A copied YouTube track has no source-playlist position until it is linked remotely. */
+    public static boolean hasLocallyAddedYoutubeTracks(@Nullable List<Track> tracks) {
+        if (tracks == null) {
+            return false;
+        }
+        for (Track track : tracks) {
+            if (track.videoId != null && !track.videoId.isEmpty()
+                    && track.youtubePosition == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean hasOriginalYoutubePlaylist(@Nullable PlaylistSource source) {
+        if (source == null) {
+            return false;
+        }
+        String playlistId = source.youtubePlaylistId;
+        if (playlistId == null || playlistId.isEmpty()) {
+            playlistId = YoutubeUrlParser.playlistId(source.sourceUrl);
+        }
+        return playlistId != null && !YoutubeUrlParser.isRadioPlaylistId(playlistId);
+    }
+
+    static List<Track> missingYoutubeTracks(List<Track> tracks,
+                                            @Nullable List<String> requestedVideoIds) {
+        Map<String, Integer> requestedCounts = null;
+        if (requestedVideoIds != null) {
+            requestedCounts = new HashMap<>();
+            for (String videoId : requestedVideoIds) {
+                if (videoId != null && !videoId.isEmpty()) {
+                    requestedCounts.put(videoId,
+                            requestedCounts.getOrDefault(videoId, 0) + 1);
+                }
+            }
+        }
+        List<Track> localOrder = new ArrayList<>(tracks);
+        localOrder.sort(Comparator.comparingInt(track -> track.position));
+        List<Track> missing = new ArrayList<>();
+        for (Track track : localOrder) {
+            if (track.videoId == null || track.videoId.isEmpty()
+                    || track.youtubePlaylistItemId != null) {
+                continue;
+            }
+            if (requestedCounts != null) {
+                int remaining = requestedCounts.getOrDefault(track.videoId, 0);
+                if (remaining <= 0) {
+                    continue;
+                }
+                requestedCounts.put(track.videoId, remaining - 1);
+            }
+            missing.add(track);
+        }
+        return missing;
     }
 
     private PlaylistSource requireSource(String localPlaylist) {

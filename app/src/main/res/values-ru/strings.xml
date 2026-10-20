@@ -242,6 +242,11 @@
     <string name="youtube_sync_delete_both">Из Viby и YouTube</string>
     <string name="youtube_sync_deleting">Удаляю из YouTube…</string>
     <string name="youtube_sync_delete_partial">Удалено: %1$d · ошибок YouTube: %2$d (%3$s)</string>
+    <string name="youtube_sync_copy_title">Добавить в «%1$s»</string>
+    <string name="youtube_sync_missing_action">Добавить недостающие треки на YouTube</string>
+    <string name="youtube_sync_missing">Добавляю недостающие треки на YouTube…</string>
+    <string name="youtube_sync_missing_added">Добавлено на YouTube: %1$d</string>
+    <string name="youtube_sync_missing_partial">Добавлено: %1$d · ошибок: %2$d (%3$s)</string>
     <string name="track_radio_playlist_name">Радио: %1$s</string>
     <string name="track_radio_preparing">Создаю радио по треку «%1$s»…</string>
     <string name="track_radio_started">Радио добавлено в очередь загрузки</string>

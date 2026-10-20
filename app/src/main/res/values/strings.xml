@@ -243,6 +243,11 @@
     <string name="youtube_sync_delete_both">Viby and YouTube</string>
     <string name="youtube_sync_deleting">Deleting from YouTube…</string>
     <string name="youtube_sync_delete_partial">Removed: %1$d · failed on YouTube: %2$d (%3$s)</string>
+    <string name="youtube_sync_copy_title">Add to “%1$s”</string>
+    <string name="youtube_sync_missing_action">Sync missing tracks to YouTube</string>
+    <string name="youtube_sync_missing">Adding missing tracks to YouTube…</string>
+    <string name="youtube_sync_missing_added">Added to YouTube: %1$d</string>
+    <string name="youtube_sync_missing_partial">Added: %1$d · failed: %2$d (%3$s)</string>
     <string name="track_radio_playlist_name">Radio: %1$s</string>
     <string name="track_radio_preparing">Creating radio for “%1$s”…</string>
     <string name="track_radio_started">Radio added to the download queue</string>

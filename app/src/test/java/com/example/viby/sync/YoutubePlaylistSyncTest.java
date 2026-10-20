@@ -14,6 +14,66 @@ import java.util.List;
 public class YoutubePlaylistSyncTest {
 
     @Test
+    public void recognizesOriginalPlaylistButRejectsUnsavedRadio() {
+        com.example.viby.data.PlaylistSource original =
+                new com.example.viby.data.PlaylistSource();
+        original.sourceUrl = "https://www.youtube.com/playlist?list=PLowned";
+        com.example.viby.data.PlaylistSource radio =
+                new com.example.viby.data.PlaylistSource();
+        radio.sourceUrl = "https://www.youtube.com/watch?v=seed&list=RDseed";
+
+        org.junit.Assert.assertTrue(
+                YoutubePlaylistSync.hasOriginalYoutubePlaylist(original));
+        org.junit.Assert.assertFalse(
+                YoutubePlaylistSync.hasOriginalYoutubePlaylist(radio));
+    }
+
+    @Test
+    public void missingYoutubeTracksExcludeRemoteAndDeviceOnlyEntries() {
+        Track missing = track(1, "missing", 2);
+        Track linked = track(2, "linked", 1);
+        linked.youtubePlaylistItemId = "remote-item";
+        Track deviceOnly = track(3, null, 0);
+
+        List<Track> result = YoutubePlaylistSync.missingYoutubeTracks(
+                new ArrayList<>(Arrays.asList(missing, linked, deviceOnly)), null);
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.get(0).id);
+        org.junit.Assert.assertTrue(YoutubePlaylistSync.hasMissingYoutubeTracks(result));
+    }
+
+    @Test
+    public void locallyAddedTracksRequireYoutubeIdAndNoSourcePosition() {
+        Track imported = track(1, "imported", 0);
+        imported.youtubePosition = 0;
+        Track copied = track(2, "copied", 1);
+        Track deviceOnly = track(3, null, 2);
+
+        org.junit.Assert.assertTrue(
+                YoutubePlaylistSync.hasLocallyAddedYoutubeTracks(
+                        Arrays.asList(imported, copied, deviceOnly)));
+        copied.youtubePosition = 1;
+        org.junit.Assert.assertFalse(
+                YoutubePlaylistSync.hasLocallyAddedYoutubeTracks(
+                        Arrays.asList(imported, copied, deviceOnly)));
+    }
+
+    @Test
+    public void requestedMissingTracksRespectOccurrenceCountsAndLocalOrder() {
+        Track firstDuplicate = track(1, "same", 5);
+        Track secondDuplicate = track(2, "same", 2);
+        Track other = track(3, "other", 1);
+
+        List<Track> result = YoutubePlaylistSync.missingYoutubeTracks(
+                new ArrayList<>(Arrays.asList(firstDuplicate, secondDuplicate, other)),
+                Arrays.asList("same"));
+
+        assertEquals(1, result.size());
+        assertEquals(2, result.get(0).id);
+    }
+
+    @Test
     public void linksDuplicateVideosToDistinctPlaylistItems() {
         Track first = track(1, "same", 0);
         Track second = track(2, "same", 1);

@@ -8,6 +8,12 @@
         android:visible="false"
         app:showAsAction="always" />
     <item
+        android:id="@+id/action_sync_missing_youtube"
+        android:icon="@drawable/ic_sync"
+        android:title="@string/youtube_sync_missing_action"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/action_queue"
         android:icon="@drawable/ic_queue_music"
         android:title="@string/playback_queue_title"
