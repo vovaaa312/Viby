@@ -165,6 +165,23 @@ public class YoutubePlaylistSyncTest {
         assertEquals(20, tracks.get(1).position);
     }
 
+    @Test
+    public void linkingWithReorderMovesCopiedTrackToRemotePosition() {
+        Track existing = track(1, "existing", 0);
+        Track copiedAtEnd = track(2, "copied", 1);
+        List<Track> tracks = new ArrayList<>(
+                Arrays.asList(existing, copiedAtEnd));
+
+        YoutubePlaylistSync.linkTracks(tracks, Arrays.asList(
+                item("copied-item", "copied", 0),
+                item("existing-item", "existing", 1)), true);
+
+        assertEquals(2, tracks.get(0).id);
+        assertEquals(0, tracks.get(0).position);
+        assertEquals(1, tracks.get(1).id);
+        assertEquals(1, tracks.get(1).position);
+    }
+
     private static Track track(long id, String videoId, int position) {
         Track track = new Track();
         track.id = id;

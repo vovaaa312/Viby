@@ -290,11 +290,22 @@ public final class YoutubePlaylistSync {
             }
         }
 
+        boolean reordered = false;
         if (added > 0) {
             try {
-                linkTracks(tracks, api.listItems(accessToken, playlistId), false);
+                linkTracks(tracks, api.listItems(accessToken, playlistId), true);
+                reordered = true;
             } catch (Exception ignored) {
                 // Insert responses already carry stable item ids; refresh can happen later.
+            }
+        } else {
+            linkTracks(tracks, remote, true);
+            reordered = true;
+        }
+        if (!reordered) {
+            YoutubePlaylistOrder.sort(tracks);
+            for (int i = 0; i < tracks.size(); i++) {
+                tracks.get(i).position = i;
             }
         }
         if (!tracks.isEmpty()) {
