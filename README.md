@@ -1,7 +1,7 @@
 # Viby
 
-> Viby also has an Desktop version: [[vovaaa312/Viby](https://github.com/vovaaa312/Viby).](https://github.com/vovaaa312/VibyDesktop)
-> 
+> Viby also has an Desktop version: [vovaaa312/VibyDesktop](https://github.com/vovaaa312/VibyDesktop)
+
 Viby is an experimental, AIMP-inspired music player for Android that turns YouTube videos and playlists into an on-device music library. Downloading, metadata extraction, queue management, playback, and app updates run on the phone; Viby does not require its own backend.
 
 > **Project status:** personal-use beta. The main workflows are usable and now have a broad automated regression suite plus separated download, playback, YouTube, and library controllers. Dependency updates, performance profiling, and further reliability work are still needed before it should be treated as a production-ready player.
