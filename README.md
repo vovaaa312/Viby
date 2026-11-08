@@ -1,6 +1,6 @@
 # Viby
 
-> Viby also has an Desktop version: [vovaaa312/VibyDesktop](https://github.com/vovaaa312/VibyDesktop)
+> Viby also has a desktop version: [vovaaa312/VibyDesktop](https://github.com/vovaaa312/VibyDesktop)
 
 Viby is an experimental, AIMP-inspired music player for Android that turns YouTube videos and playlists into an on-device music library. Downloading, metadata extraction, queue management, playback, and app updates run on the phone; Viby does not require its own backend.
 
@@ -35,6 +35,9 @@ Viby is an experimental, AIMP-inspired music player for Android that turns YouTu
 - Show per-track download progress as a circular overlay on darkened cover art.
 - Add placeholder tracks to the destination playlist as soon as playlist metadata is available.
 - When an unfinished track is selected, resolve an online stream for immediate playback and move its full download to the front of the queue.
+- Persist each track's download state, retry temporary failures automatically, and resume after a network loss.
+- Explain failed downloads with a classified reason (unavailable, private, age-restricted, network, out of space, and others) and offer retry, removal, or copying diagnostics.
+- Check free space before each download and stop with an "out of space" error instead of filling the disk.
 
 The current **smart download** implementation uses metadata placeholders, on-demand online playback, and full-download prioritization. It does **not** yet prefetch the first few seconds of every track in parallel.
 
@@ -48,18 +51,27 @@ The current **smart download** implementation uses metadata placeholders, on-dem
 - Shuffle, repeat, previous/next, seeking, full player, and persistent mini player.
 - Lyrics panel pulled up from the player, using YouTube Music lyrics first and YouTube manual/automatic subtitles as fallbacks.
 
-### Library and interface
+### Library
+
+- A **Library** screen with **Tracks**, **Artists**, **Albums**, and **Folders** tabs across every playlist. Copies of the same song in several playlists appear once, and YouTube "Artist - Topic" channels are merged with the artist.
+- Global search by title, artist, album, and playlist.
+- Filters: all, favorites, recently added, recently played, not downloaded, and failed downloads.
+- Sorting by title, artist, album, date added, last played, play count, or duration, in either direction. The last tab, filter, and sort are remembered.
+- Multi-select actions: play, add to the queue, play next, favorite, copy to a playlist, retry failed downloads, and delete.
+- Favorites follow the song across every playlist copy; play counts and last-played times are recorded once playback actually starts.
+- Album names are read from the audio tags in the background.
+- Returning from an artist, album, or folder restores the previous list position.
+
+### Playlists and interface
 
 - Playlist-based local library backed by Room.
-- Create and delete playlists, search the active playlist, sort tracks, and move tracks between playlists.
-- Multi-select and contextual track actions.
-- A draggable playlist scrollbar for quickly navigating libraries with hundreds of tracks.
+- Create and delete playlists, search the active playlist, sort tracks, and move or copy tracks between playlists.
+- Multi-select and contextual track actions, including favorites.
+- Draggable scrollbars in playlists, the Library, and the playback queue for navigating hundreds of tracks.
+- A shared mini player on the playlist and Library screens.
+- A compact AIMP-like navigation drawer: Library, Download, and Effects on top, the playlist list below, and rarely used tools (storage, YouTube account, update checks, `yt-dlp` update) under **Settings**.
 - Monochrome light and dark themes.
 - Dedicated portrait, landscape, phone, and tablet layouts.
-- Whole-library browser with tracks, artists, albums, and folders, global search, favorites, recently added/played, not-downloaded and failed filters, sorting, and bulk actions.
-- Favorites shared by every playlist copy of a song, plus play counts and last-played times.
-- Compact AIMP-like navigation drawer; rarely used tools are grouped under Settings.
-- A shared mini player on the playlist and library screens, and draggable scrollbars in the library and playback queue.
 - App-scoped storage, so normal storage permissions are not required.
 
 ### Equalizer
@@ -77,7 +89,7 @@ The current **smart download** implementation uses metadata placeholders, on-dem
 - SHA-256 verification when the GitHub release asset provides a digest.
 - Installation through the system Android package installer after explicit user approval.
 
-## Storage
+## Storage and backups
 
 Downloaded music is stored in:
 
@@ -87,18 +99,19 @@ Android/data/com.example.viby/files/Music/<playlist>/
 
 This avoids broad storage permissions and is accessible over USB on supported devices. It also means that Android normally removes the downloaded library when Viby is uninstalled.
 
-The **Storage & backups** screen (drawer → Settings) protects the library:
+The **Storage & backups** screen (drawer → **Settings**) protects the library:
 
-- Storage usage per playlist folder, cleanup of temporary download files, unused files, and cache.
-- Library export/import as JSON (playlists, order, favorites, play statistics; no cookies or tokens) and per-playlist M3U8/JSON export.
-- An optional backup folder chosen through the Storage Access Framework. Viby mirrors the music, playlists, and `viby-library.json` there, so the folder survives an uninstall.
-- Restore and relink after a reinstall: tracks are re-attached to existing files or copied back from the backup folder; missing ones become "not downloaded" and can be re-downloaded in one tap.
-- A free-space check before every download.
+- **Usage:** free space, library size, size of every playlist folder, and counts of not-downloaded, failed, and missing tracks.
+- **Cleanup:** temporary `yt-dlp` files (stale ones are also removed automatically after three days), files that no track uses (listed with their folders before deletion), and the image cache. Cleanup is blocked while downloads are running.
+- **Library backup:** export and import the whole library as JSON: playlists, track order, favorites, and play statistics. Paths are relative; cookies, tokens, and diagnostics are never included. Importing merges with the current library instead of duplicating tracks.
+- **Playlist export:** M3U8 (relative paths, with YouTube links for tracks without a local file) or JSON, from the playlist screen menu.
+- **Backup folder:** an optional folder chosen through the Storage Access Framework. Viby copies the music, one `.m3u8` per playlist, and `viby-library.json` there, manually or automatically after downloads, so the copy survives an uninstall.
+- **Restore after a reinstall:** choose the same folder and tap **Restore from folder**. Tracks are re-linked to files that still exist or copied back from the folder; anything not found becomes "not downloaded" and can be re-downloaded in one tap.
 
 ## Current limitations
 
 - Only `arm64-v8a` phones/tablets and `x86_64` emulators are included in the APK.
-- The APK is large (currently roughly 119 MB) because it bundles Python, `yt-dlp`, and FFmpeg.
+- The APK is large (currently roughly 117 MB) because it bundles Python, `yt-dlp`, and FFmpeg.
 - Viby does not yet provide a genre view, tag editor, synchronized line-by-line lyrics, ReplayGain, gapless playback, crossfade, sleep timer, Android Auto browser, widgets, Chromecast, or selectable download quality/format.
 - Download throughput for large playlists still needs profiling and optimization. Jobs currently prioritize correctness and deterministic state over maximum parallelism.
 - Release APKs use a permanent local signing key. CI-generated and reproducible release builds are still planned.
