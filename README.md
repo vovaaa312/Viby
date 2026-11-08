@@ -56,6 +56,10 @@ The current **smart download** implementation uses metadata placeholders, on-dem
 - A draggable playlist scrollbar for quickly navigating libraries with hundreds of tracks.
 - Monochrome light and dark themes.
 - Dedicated portrait, landscape, phone, and tablet layouts.
+- Whole-library browser with tracks, artists, albums, and folders, global search, favorites, recently added/played, not-downloaded and failed filters, sorting, and bulk actions.
+- Favorites shared by every playlist copy of a song, plus play counts and last-played times.
+- Compact AIMP-like navigation drawer; rarely used tools are grouped under Settings.
+- A shared mini player on the playlist and library screens, and draggable scrollbars in the library and playback queue.
 - App-scoped storage, so normal storage permissions are not required.
 
 ### Equalizer
@@ -81,16 +85,24 @@ Downloaded music is stored in:
 Android/data/com.example.viby/files/Music/<playlist>/
 ```
 
-This avoids broad storage permissions and is accessible over USB on supported devices. It also means that Android normally removes the downloaded library when Viby is uninstalled. A user-selected shared library location and backup/restore workflow are not implemented yet.
+This avoids broad storage permissions and is accessible over USB on supported devices. It also means that Android normally removes the downloaded library when Viby is uninstalled.
+
+The **Storage & backups** screen (drawer → Settings) protects the library:
+
+- Storage usage per playlist folder, cleanup of temporary download files, unused files, and cache.
+- Library export/import as JSON (playlists, order, favorites, play statistics; no cookies or tokens) and per-playlist M3U8/JSON export.
+- An optional backup folder chosen through the Storage Access Framework. Viby mirrors the music, playlists, and `viby-library.json` there, so the folder survives an uninstall.
+- Restore and relink after a reinstall: tracks are re-attached to existing files or copied back from the backup folder; missing ones become "not downloaded" and can be re-downloaded in one tap.
+- A free-space check before every download.
 
 ## Current limitations
 
 - Only `arm64-v8a` phones/tablets and `x86_64` emulators are included in the APK.
 - The APK is large (currently roughly 119 MB) because it bundles Python, `yt-dlp`, and FFmpeg.
-- Viby does not yet provide a global artist/album/genre library, tag editor, synchronized line-by-line lyrics, ReplayGain, gapless playback, crossfade, sleep timer, Android Auto browser, widgets, Chromecast, or selectable download quality/format.
+- Viby does not yet provide a genre view, tag editor, synchronized line-by-line lyrics, ReplayGain, gapless playback, crossfade, sleep timer, Android Auto browser, widgets, Chromecast, or selectable download quality/format.
 - Download throughput for large playlists still needs profiling and optimization. Jobs currently prioritize correctness and deterministic state over maximum parallelism.
 - Release APKs use a permanent local signing key. CI-generated and reproducible release builds are still planned.
-- The regression suite currently contains 108 local unit tests and 27 Android instrumentation tests. `lintDebug` passes without errors; remaining warnings are tracked technical debt.
+- The regression suite currently contains 135 local unit tests and 30 Android instrumentation tests. `lintDebug` passes without errors; remaining warnings are tracked technical debt.
 - OAuth, live YouTube/yt-dlp behavior, network interruption recovery, Bluetooth/audio-focus behavior, and real update installation still require manual smoke testing.
 - YouTube login cookies are sensitive data. Backup exclusions and further WebView/cookie hardening are planned.
 
@@ -113,9 +125,7 @@ This avoids broad storage permissions and is accessible over USB on supported de
 
 ### Player and library completeness
 
-- Add a global track/artist/album library and user-selected storage through MediaStore or the Storage Access Framework.
-- Add explicit retry/cleanup tools for failed placeholder tracks.
-- Consider ReplayGain, gapless playback, crossfade, sleep timer, tag editing, lyrics, playlist import/export, Android Auto, widgets, and quality/format selection.
+- Consider ReplayGain, gapless playback, crossfade, sleep timer, tag editing, synchronized lyrics, Android Auto, widgets, and quality/format selection.
 
 ## Building
 
