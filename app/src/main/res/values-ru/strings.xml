@@ -182,8 +182,8 @@
 
     <!-- Playlist deletion -->
     <string name="delete_playlist_title">Удалить плейлист?</string>
-    <string name="delete_playlist_message">«%1$s»: %2$d трек(ов) будут удалены с устройства вместе с файлами.</string>
-    <string name="playlist_deleted">Плейлист удалён</string>
+    <string name="delete_playlist_message">«%1$s»: %2$d трек(ов) будут удалены вместе с файлами. Файлы, которые есть и в других плейлистах, останутся на устройстве.</string>
+    <string name="playlist_deleted">Плейлист удалён. Удалено файлов: %1$d, оставлено общих: %2$d</string>
 
     <!-- Playlist refresh -->
     <string name="refresh_playlist">Обновить плейлист</string>
@@ -280,4 +280,110 @@
     <string name="delete_track_message">«%1$s» будет удалён вместе с файлом.</string>
     <string name="btn_delete">Удалить</string>
     <string name="ytdlp_not_ready">yt-dlp ещё инициализируется, попробуй через пару секунд</string>
+
+    <!-- 1.2.9: избранное и массовые действия -->
+    <string name="ctx_favorite">В избранное</string>
+    <string name="ctx_unfavorite">Убрать из избранного</string>
+    <string name="favorite_desc">Избранное</string>
+    <string name="favorites_added">Добавлено в избранное: %1$d</string>
+    <string name="favorites_removed">Убрано из избранного: %1$d</string>
+    <string name="bulk_actions">Ещё действия</string>
+    <string name="bulk_play">Воспроизвести</string>
+    <string name="bulk_retry_downloads">Повторить неудачные загрузки</string>
+    <string name="bulk_retry_started">Повторяю загрузки: %1$d</string>
+
+    <!-- 1.2.9: экспорт плейлиста -->
+    <string name="export_playlist_action">Экспорт плейлиста…</string>
+    <string name="export_playlist_title">Экспорт «%1$s»</string>
+    <string name="export_playlist_m3u">M3U8 (другие плееры, папка копии)</string>
+    <string name="export_playlist_json">JSON (Viby, можно импортировать обратно)</string>
+    <string name="export_playlist_done">Плейлист «%1$s» экспортирован</string>
+
+    <!-- 1.2.9: экран хранилища -->
+    <string name="menu_storage">Хранилище и резервные копии</string>
+    <string name="storage_title">Хранилище и копии</string>
+    <string name="storage_operation_failed">Не получилось: %1$s</string>
+    <string name="storage_scanning">Сканирую хранилище…</string>
+    <string name="storage_section_usage">Использование</string>
+    <string name="storage_summary">Свободно на устройстве: %1$s из %2$s\nФайлы медиатеки: %3$s (%4$d файлов)\nТреков: %5$d уникальных, %6$d записей в %7$d плейлистах\nНе загружено: %8$d · ошибки загрузки: %9$d · файл пропал: %10$d</string>
+    <string name="storage_folders_header">Папки</string>
+    <string name="storage_no_files">Скачанных файлов пока нет</string>
+    <string name="storage_section_cleanup">Очистка</string>
+    <string name="storage_clean_temp">Удалить временные файлы: %1$d (%2$s)</string>
+    <string name="storage_clean_temp_confirm">Удалить %1$d временных файлов (%2$s), оставшихся от прерванных загрузок и конвертаций? Пустые папки тоже будут удалены.</string>
+    <string name="storage_clean_orphans">Удалить файлы вне медиатеки: %1$d (%2$s)</string>
+    <string name="storage_clean_orphans_confirm">Эти %1$d файлов (%2$s) не используются ни одним треком медиатеки. Удалить их?</string>
+    <string name="storage_clear_cache">Очистить кэш (обложки, превью): %1$s</string>
+    <string name="storage_cache_cleared">Кэш очищен: %1$s</string>
+    <string name="storage_files_deleted">Удалено файлов: %1$d</string>
+    <string name="storage_busy_downloads">Дождись окончания загрузок или поставь их на паузу: их временные файлы ещё используются</string>
+    <string name="storage_section_files">Файлы</string>
+    <string name="storage_relink_hint">Находит треки, чьи файлы переехали или пропали (например, после переустановки), и снова привязывает их: сначала на устройстве, затем в папке резервной копии. Ненайденные треки становятся «не загружено», их можно скачать заново.</string>
+    <string name="storage_relink">Проверить и перепривязать файлы</string>
+    <string name="storage_redownload">Скачать отсутствующие заново: %1$d</string>
+    <string name="storage_redownload_started">Поставлено в загрузку: %1$d</string>
+    <string name="storage_relink_result">Проверено: %1$d\nНа месте: %2$d\nНайдено на устройстве: %3$d\nВосстановлено из папки копии: %4$d\nПомечено «не загружено»: %5$d\nВсё ещё не найдено: %6$d</string>
+    <string name="storage_section_backup">Резервная копия медиатеки</string>
+    <string name="storage_backup_hint">JSON-файл с плейлистами, порядком треков, избранным и статистикой прослушиваний. Аудиофайлы в него не входят; cookies и данные аккаунта никогда не сохраняются.</string>
+    <string name="storage_export_library">Экспорт медиатеки…</string>
+    <string name="storage_import_library">Импорт медиатеки…</string>
+    <string name="storage_export_done">Медиатека экспортирована</string>
+    <string name="storage_import_result">Добавлено: %1$d\nУже были в медиатеке (объединены): %2$d\nВосстановлено источников плейлистов: %3$d\nБез локального файла: %4$d</string>
+    <string name="storage_section_mirror">Папка резервной копии</string>
+    <string name="storage_mirror_hint">Загрузки хранятся в папке приложения, и Android удаляет её вместе с приложением. Выбери папку (например, Music/Viby): Viby скопирует туда музыку, плейлисты M3U8 и файл медиатеки, и после переустановки всё можно будет восстановить.</string>
+    <string name="storage_mirror_none">Папка не выбрана</string>
+    <string name="storage_mirror_current">Папка: %1$s\nПоследняя синхронизация: %2$s</string>
+    <string name="storage_mirror_never">ещё не было</string>
+    <string name="storage_mirror_lost">Доступ к %1$s потерян. Выбери папку заново.</string>
+    <string name="storage_mirror_not_set">Папка резервной копии не выбрана или доступ к ней отозван</string>
+    <string name="storage_mirror_chosen">Папка выбрана. Скопировать медиатеку туда сейчас или восстановить медиатеку из неё, если там уже есть копия Viby?</string>
+    <string name="storage_choose_folder">Выбрать папку…</string>
+    <string name="storage_sync_now">Синхронизировать сейчас</string>
+    <string name="storage_sync_started">Копирую медиатеку в папку резервной копии…</string>
+    <string name="storage_sync_result">Скопировано: %1$d файлов (%2$s)\nУже актуальны: %3$d\nОшибок: %4$d\nЗаписано плейлистов: %5$d</string>
+    <string name="storage_auto_sync">Синхронизировать автоматически после загрузок</string>
+    <string name="storage_restore_folder">Восстановить из папки</string>
+    <string name="storage_restore_no_backup">В папке нет файла медиатеки: только перепривязаны файлы.</string>
+    <string name="storage_later">Позже</string>
+    <string name="storage_not_mounted">Хранилище устройства сейчас недоступно, попробуй позже</string>
+    <string name="library_file_missing">Аудиофайл пропал, а источника на YouTube у трека нет</string>
+
+    <!-- 1.2.9: медиатека -->
+    <string name="menu_library">Медиатека</string>
+    <string name="menu_settings">Настройки</string>
+    <string name="library_search_hint">Поиск по всей медиатеке</string>
+    <string name="library_tab_tracks">Треки</string>
+    <string name="library_tab_artists">Исполнители</string>
+    <string name="library_tab_albums">Альбомы</string>
+    <string name="library_tab_folders">Папки</string>
+    <string name="library_filter_all">Все</string>
+    <string name="library_filter_favorites">Избранное</string>
+    <string name="library_filter_recently_added">Недавно добавленные</string>
+    <string name="library_filter_recently_played">Недавно проигранные</string>
+    <string name="library_filter_not_downloaded">Не загружено</string>
+    <string name="library_filter_failed">Ошибка</string>
+    <string name="library_sort_default">По умолчанию для фильтра</string>
+    <string name="library_sort_album">Альбом</string>
+    <string name="library_sort_last_played">Последнее прослушивание</string>
+    <string name="library_sort_play_count">Число прослушиваний</string>
+    <string name="library_unknown_album">Неизвестный альбом</string>
+    <string name="library_unknown_folder">Неизвестная папка</string>
+    <string name="library_empty">Ничего не найдено</string>
+    <string name="library_back_to_groups">Назад</string>
+    <string name="library_not_downloaded">не загружено</string>
+    <string name="library_not_downloaded_message">Этот трек ещё не скачан.</string>
+    <string name="library_listen_online">Слушать онлайн</string>
+    <string name="library_download_now">Скачать</string>
+    <string name="library_open_playlist">Открыть плейлист «%1$s»</string>
+    <string name="library_open_playlist_short">К плейлисту</string>
+    <string name="library_nothing_playable">Нет скачанных треков для воспроизведения</string>
+    <string name="library_player_not_ready">Плеер ещё подключается, попробуй снова</string>
+    <string name="library_select_first">Сначала выдели треки</string>
+    <string name="library_delete_message">Удалить %1$d треков с устройства? Будут удалены все их копии в плейлистах (%2$d записей) и файлы. Связанные плейлисты YouTube не меняются.</string>
+    <plurals name="library_group_tracks">
+        <item quantity="one">%1$d трек · %2$s</item>
+        <item quantity="few">%1$d трека · %2$s</item>
+        <item quantity="many">%1$d треков · %2$s</item>
+        <item quantity="other">%1$d трека · %2$s</item>
+    </plurals>
 </resources>

@@ -8,7 +8,6 @@ import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -19,13 +18,11 @@ import androidx.annotation.OptIn;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.MediaItem;
-import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaController;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.bumptech.glide.Glide;
 import com.example.viby.R;
 import com.example.viby.data.PlaylistInfo;
 import com.example.viby.data.Track;
@@ -54,6 +51,14 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
     private static final int ACTION_SELECT = 5;
     private static final int ACTION_REMOVE_FROM_PLAYLIST = 6;
     private static final int ACTION_DELETE_FROM_DEVICE = 7;
+    private static final int ACTION_TOGGLE_FAVORITE = 8;
+
+    private static final int BULK_PLAY = 0;
+    private static final int BULK_ADD_TO_QUEUE = 1;
+    private static final int BULK_PLAY_NEXT = 2;
+    private static final int BULK_FAVORITE = 3;
+    private static final int BULK_UNFAVORITE = 4;
+    private static final int BULK_RETRY_DOWNLOADS = 5;
 
     private PlayerViewModel viewModel;
     private MediaController controller;
@@ -66,10 +71,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
     private TextView selectionCount;
     private boolean updatingSelectAll;
 
-    private ImageView miniThumb;
-    private TextView miniTitle;
-    private TextView miniArtist;
-    private ImageButton miniPlay;
+    private MiniPlayerBinder miniPlayer;
 
     private OnBackPressedCallback backCallback;
 
@@ -84,17 +86,6 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         @Override
         public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
             highlightCurrent();
-            updateMiniPlayer();
-        }
-
-        @Override
-        public void onMediaMetadataChanged(@NonNull MediaMetadata mediaMetadata) {
-            updateMiniPlayer();
-        }
-
-        @Override
-        public void onIsPlayingChanged(boolean isPlaying) {
-            updateMiniPlayer();
         }
     };
 
@@ -141,6 +132,12 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
             }
         });
         selectionClose.setOnClickListener(v -> exitSelection());
+        view.findViewById(R.id.selectionMore).setOnClickListener(v -> {
+            List<Track> selected = adapter.getSelectedTracks();
+            if (!selected.isEmpty()) {
+                showBulkActions(selected);
+            }
+        });
 
         view.findViewById(R.id.refreshPlaylist).setOnClickListener(v -> refreshPlaylist());
         view.findViewById(R.id.addTracks).setOnClickListener(v -> showAddTracksDialog());
@@ -170,36 +167,8 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         requireActivity().getOnBackPressedDispatcher()
                 .addCallback(getViewLifecycleOwner(), backCallback);
 
-        View miniPlayer = view.findViewById(R.id.miniPlayer);
-        miniThumb = view.findViewById(R.id.miniThumb);
-        miniTitle = view.findViewById(R.id.miniTitle);
-        miniArtist = view.findViewById(R.id.miniArtist);
-        miniPlay = view.findViewById(R.id.miniPlay);
-        ImageButton miniPrev = view.findViewById(R.id.miniPrev);
-        ImageButton miniNext = view.findViewById(R.id.miniNext);
-
-        miniPlayer.setOnClickListener(v ->
-                ((MainActivity) requireActivity()).showPlayerPage());
-        miniPlay.setOnClickListener(v -> {
-            if (controller == null) {
-                return;
-            }
-            if (controller.isPlaying()) {
-                controller.pause();
-            } else {
-                controller.play();
-            }
-        });
-        miniPrev.setOnClickListener(v -> {
-            if (controller != null) {
-                controller.seekToPrevious();
-            }
-        });
-        miniNext.setOnClickListener(v -> {
-            if (controller != null) {
-                controller.seekToNext();
-            }
-        });
+        miniPlayer = new MiniPlayerBinder(view.findViewById(R.id.miniPlayer),
+                () -> ((MainActivity) requireActivity()).showPlayerPage());
 
         viewModel.tracks.observe(getViewLifecycleOwner(), tracks -> {
             adapter.submit(tracks);
@@ -218,7 +187,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                 controller.addListener(playerListener);
             }
             highlightCurrent();
-            updateMiniPlayer();
+            miniPlayer.setPlayer(controller);
         });
     }
 
@@ -231,6 +200,10 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         if (controller != null) {
             controller.removeListener(playerListener);
             controller = null;
+        }
+        if (miniPlayer != null) {
+            miniPlayer.setPlayer(null);
+            miniPlayer = null;
         }
         super.onDestroyView();
     }
@@ -254,6 +227,8 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         addContextAction(items, actions, R.string.ctx_add_queue, ACTION_ADD_TO_QUEUE);
         addContextAction(items, actions, R.string.ctx_insert_after_current,
                 ACTION_INSERT_AFTER_CURRENT);
+        addContextAction(items, actions, track.favorite
+                ? R.string.ctx_unfavorite : R.string.ctx_favorite, ACTION_TOGGLE_FAVORITE);
         if (hasYoutubeSource(track)) {
             addContextAction(items, actions, R.string.ctx_track_radio, ACTION_TRACK_RADIO);
         }
@@ -280,6 +255,10 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                             break;
                         case ACTION_TRACK_RADIO:
                             activity.startTrackRadio(track);
+                            break;
+                        case ACTION_TOGGLE_FAVORITE:
+                            activity.setFavorite(Collections.singletonList(track),
+                                    !track.favorite);
                             break;
                         case ACTION_MOVE_TO_PLAYLIST:
                             showMoveDialog(Collections.singletonList(track));
@@ -328,32 +307,9 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
     }
 
     private void showFailedDownloadDialog(Track track) {
-        String reason = track.downloadErrorMessage != null
-                ? track.downloadErrorMessage : getString(R.string.download_error_unknown);
-        String diagnostic = getString(R.string.download_diagnostic_template,
-                track.title,
-                track.videoId != null ? track.videoId : "—",
-                reason,
-                track.downloadErrorCode != null ? track.downloadErrorCode : "UNKNOWN",
-                track.downloadAttemptCount,
-                track.downloadFormat != null ? track.downloadFormat : "—",
-                track.downloadRequiresAuthorization ? "yes" : "no");
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.download_failure_reason_title)
-                .setMessage(reason)
-                .setPositiveButton(R.string.download_retry_one, (dialog, which) ->
-                        DownloadService.retryPersistedTrack(requireContext(), track))
-                .setNegativeButton(R.string.download_remove_failed, (dialog, which) ->
-                        ((MainActivity) requireActivity()).confirmDeleteTrack(track))
-                .setNeutralButton(R.string.download_copy_diagnostic, (dialog, which) -> {
-                    android.content.ClipboardManager clipboard = requireContext()
-                            .getSystemService(android.content.ClipboardManager.class);
-                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
-                            "Viby download diagnostic", diagnostic));
-                    Toast.makeText(requireContext(), R.string.download_diagnostic_copied,
-                            Toast.LENGTH_SHORT).show();
-                })
-                .show();
+        MainActivity activity = (MainActivity) requireActivity();
+        DownloadFailureDialog.show(requireContext(), track,
+                () -> activity.confirmDeleteTrack(track));
     }
 
     @Override
@@ -421,7 +377,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         input.setHint(R.string.url_hint);
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.add_from_url)
-                .setView(input)
+                .setView(DialogInputs.padded(input))
                 .setPositiveButton(R.string.btn_download, (dialog, which) -> {
                     String url = input.getText().toString().trim();
                     String playlist = viewModel.getActivePlaylistName();
@@ -480,6 +436,68 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         backCallback.setEnabled(false);
     }
 
+    /** Bulk actions for the multi-selection; playback actions use downloaded tracks only. */
+    private void showBulkActions(List<Track> selected) {
+        MainActivity activity = (MainActivity) requireActivity();
+        List<Track> playable = new ArrayList<>();
+        List<Track> failed = new ArrayList<>();
+        for (Track track : selected) {
+            if (PlaybackQueueController.isPlayableLocal(track)) {
+                playable.add(track);
+            } else if (isFailedDownload(track)) {
+                failed.add(track);
+            }
+        }
+        List<String> items = new ArrayList<>();
+        List<Integer> actions = new ArrayList<>();
+        if (!playable.isEmpty()) {
+            addContextAction(items, actions, R.string.bulk_play, BULK_PLAY);
+            addContextAction(items, actions, R.string.ctx_add_queue, BULK_ADD_TO_QUEUE);
+            addContextAction(items, actions, R.string.ctx_insert_after_current,
+                    BULK_PLAY_NEXT);
+        }
+        addContextAction(items, actions, R.string.ctx_favorite, BULK_FAVORITE);
+        addContextAction(items, actions, R.string.ctx_unfavorite, BULK_UNFAVORITE);
+        if (!failed.isEmpty()) {
+            addContextAction(items, actions, R.string.bulk_retry_downloads,
+                    BULK_RETRY_DOWNLOADS);
+        }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(getString(R.string.selection_title, selected.size()))
+                .setItems(items.toArray(new String[0]), (dialog, which) -> {
+                    switch (actions.get(which)) {
+                        case BULK_PLAY:
+                            activity.playTrackList(playable, playable.get(0).id);
+                            break;
+                        case BULK_ADD_TO_QUEUE:
+                            activity.addToQueue(playable);
+                            break;
+                        case BULK_PLAY_NEXT:
+                            activity.insertAfterCurrent(playable);
+                            break;
+                        case BULK_FAVORITE:
+                            activity.setFavorite(selected, true);
+                            break;
+                        case BULK_UNFAVORITE:
+                            activity.setFavorite(selected, false);
+                            break;
+                        case BULK_RETRY_DOWNLOADS:
+                            for (Track track : failed) {
+                                DownloadService.retryPersistedTrack(requireContext(), track);
+                            }
+                            Toast.makeText(requireContext(),
+                                    getString(R.string.bulk_retry_started, failed.size()),
+                                    Toast.LENGTH_SHORT).show();
+                            break;
+                        default:
+                            break;
+                    }
+                    exitSelection();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     private void confirmDeleteSelected(List<Track> selected) {
         MainActivity activity = (MainActivity) requireActivity();
         String[] options = {
@@ -530,7 +548,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
                     input.setHint(R.string.playlist_hint);
                     new MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.move_dialog_title)
-                            .setView(input)
+                            .setView(DialogInputs.padded(input))
                             .setPositiveButton(android.R.string.ok, (d2, w2) -> {
                                 String name = input.getText().toString().trim();
                                 if (!name.isEmpty()) {
@@ -560,40 +578,4 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         }
     }
 
-    private void updateMiniPlayer() {
-        if (miniTitle == null) {
-            return;
-        }
-        if (controller == null || controller.getCurrentMediaItem() == null) {
-            miniTitle.setText(R.string.no_track);
-            miniArtist.setText("");
-            miniPlay.setImageResource(R.drawable.ic_play);
-            miniThumb.setImageResource(R.drawable.ic_music_note);
-            return;
-        }
-        MediaMetadata metadata = controller.getMediaMetadata();
-        miniTitle.setText(metadata.title != null ? metadata.title
-                : getString(R.string.no_track));
-        miniArtist.setText(metadata.artist != null ? metadata.artist
-                : getString(R.string.unknown_artist));
-        miniPlay.setImageResource(controller.isPlaying()
-                ? R.drawable.ic_pause : R.drawable.ic_play);
-
-        if (metadata.artworkData != null) {
-            Glide.with(this)
-                    .load(metadata.artworkData)
-                    .placeholder(R.drawable.ic_music_note)
-                    .centerCrop()
-                    .into(miniThumb);
-        } else if (metadata.artworkUri != null) {
-            Glide.with(this)
-                    .load(metadata.artworkUri)
-                    .placeholder(R.drawable.ic_music_note)
-                    .error(R.drawable.ic_music_note)
-                    .centerCrop()
-                    .into(miniThumb);
-        } else {
-            miniThumb.setImageResource(R.drawable.ic_music_note);
-        }
-    }
 }

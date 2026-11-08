@@ -39,7 +39,7 @@ final class TrackStreamResolver {
     private final Backend backend;
     private final AtomicLong requestSequence = new AtomicLong();
 
-    TrackStreamResolver(MainActivity activity) {
+    TrackStreamResolver(android.app.Activity activity) {
         Context context = activity.getApplicationContext();
         ExecutorService executor = Executors.newSingleThreadExecutor();
         runner = new Runner() {

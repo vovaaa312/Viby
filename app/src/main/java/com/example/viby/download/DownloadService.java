@@ -19,6 +19,8 @@ import com.example.viby.VibyApp;
 import com.example.viby.data.Track;
 import com.example.viby.data.TrackDao;
 import com.example.viby.data.VibyDatabase;
+import com.example.viby.library.LibraryMaintenance;
+import com.example.viby.library.StorageSpaceGuard;
 import com.example.viby.util.StorageHelper;
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
@@ -401,6 +403,9 @@ public class DownloadService extends Service {
             if (terminal) {
                 if (job.status == DownloadJob.Status.CANCELED) {
                     cleanupPendingPlaceholders(job);
+                } else if (job.status == DownloadJob.Status.DONE
+                        || job.status == DownloadJob.Status.COMPLETED_WITH_ERRORS) {
+                    LibraryMaintenance.requestAutoSync(this);
                 }
                 notificationController.postResult(job);
             }
@@ -958,6 +963,17 @@ public class DownloadService extends Service {
         job.downloadedBytes = 0;
         job.totalBytes = 0;
         File dir = StorageHelper.playlistDir(this, playlist);
+        long usableBytes = dir.getUsableSpace();
+        if (usableBytes > 0L
+                && !StorageSpaceGuard.hasEnoughSpace(usableBytes, durationMs)) {
+            // Fail fast before yt-dlp fills the disk; classified as STORAGE_FULL (no retry).
+            throw new ClassifiedDownloadException(
+                    DownloadFailure.classify(new java.io.IOException(
+                            "No space left on device: need "
+                                    + StorageSpaceGuard.requiredBytes(durationMs)
+                                    + " bytes, usable " + usableBytes)),
+                    new java.io.IOException("Not enough free space"));
+        }
         String baseName = StorageHelper.sanitize(title);
         // защита от одинаковых названий разных видео
         if (new File(dir, baseName + ".mp3").exists()

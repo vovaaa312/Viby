@@ -7,7 +7,7 @@
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="12dp">
+    android:paddingVertical="4dp">
 
     <ImageView
         android:layout_width="24dp"
@@ -20,6 +20,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
+        android:layout_marginEnd="8dp"
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="1"
@@ -34,8 +35,8 @@
 
     <ImageButton
         android:id="@+id/playlistDelete"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
         android:layout_marginStart="4dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/btn_delete"

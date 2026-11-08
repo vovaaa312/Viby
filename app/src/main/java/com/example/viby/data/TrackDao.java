@@ -64,4 +64,46 @@ public interface TrackDao {
     @Query("DELETE FROM tracks WHERE playlistName = :playlist AND videoId = :videoId "
             + "AND downloaded = 0")
     void deletePending(String playlist, String videoId);
+
+    @Query("SELECT * FROM tracks ORDER BY playlistName, position, id")
+    LiveData<List<Track>> observeAll();
+
+    @Query("SELECT * FROM tracks ORDER BY playlistName, position, id")
+    List<Track> getAllSync();
+
+    @Query("SELECT * FROM tracks WHERE id IN (:ids)")
+    List<Track> getByIdsSync(List<Long> ids);
+
+    /** Updates every row that shares the media file or the YouTube video with the given row. */
+    @Query("UPDATE tracks SET favorite = :favorite WHERE id = :id "
+            + "OR (:filePath IS NOT NULL AND :filePath != '' AND filePath = :filePath) "
+            + "OR (:videoId IS NOT NULL AND :videoId != '' AND videoId = :videoId)")
+    void setFavorite(long id, String filePath, String videoId, boolean favorite);
+
+    @Query("UPDATE tracks SET playCount = playCount + 1, lastPlayedAt = :playedAt "
+            + "WHERE id = :id OR (filePath != '' AND filePath = "
+            + "(SELECT filePath FROM tracks WHERE id = :id))")
+    void markPlayed(long id, long playedAt);
+
+    @Query("SELECT * FROM tracks WHERE downloaded = 1 AND metadataScanned = 0 "
+            + "AND filePath != '' LIMIT :limit")
+    List<Track> getUnscannedSync(int limit);
+
+    @Query("UPDATE tracks SET album = :album, metadataScanned = 1 WHERE filePath = :filePath")
+    void updateScannedMetadata(String filePath, String album);
+
+    @Query("UPDATE tracks SET filePath = :filePath, downloaded = 1, "
+            + "downloadState = 'DOWNLOADED', downloadErrorCode = NULL, "
+            + "downloadErrorMessage = NULL, downloadProgress = 100 WHERE id = :id")
+    void relinkFile(long id, String filePath);
+
+    @Query("UPDATE tracks SET downloaded = 0, downloadState = :state, "
+            + "downloadErrorCode = :errorCode, downloadErrorMessage = :errorMessage, "
+            + "downloadProgress = 0, sourceUrl = COALESCE(sourceUrl, :sourceUrl) "
+            + "WHERE id = :id")
+    void markFileMissing(long id, String state, String errorCode, String errorMessage,
+                         String sourceUrl);
+
+    @Query("SELECT DISTINCT filePath FROM tracks WHERE filePath != ''")
+    List<String> getReferencedFilePathsSync();
 }

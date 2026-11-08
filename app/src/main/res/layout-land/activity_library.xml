@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <!-- Landscape: search lives in the toolbar row, tabs and chips share one row,
+         so the list keeps most of the short screen. -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/libraryToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:minHeight="48dp"
+        app:contentInsetStartWithNavigation="0dp"
+        app:navigationIcon="?attr/homeAsUpIndicator">
+
+        <EditText
+            android:id="@+id/librarySearch"
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:background="@drawable/bg_search"
+            android:drawableStart="@drawable/ic_search"
+            android:drawablePadding="8dp"
+            android:hint="@string/library_search_hint"
+            android:imeOptions="actionSearch|flagNoExtractUi|flagNoFullscreen"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
+    </com.google.android.material.appbar.MaterialToolbar>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/libraryTabs"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            app:tabMinWidth="72dp"
+            app:tabMode="auto"
+            app:tabPaddingEnd="8dp"
+            app:tabPaddingStart="8dp" />
+
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/libraryFilters"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="8dp"
+                    app:selectionRequired="true"
+                    app:singleLine="true"
+                    app:singleSelection="true" />
+            </LinearLayout>
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <!-- Opened artist / album / folder -->
+    <LinearLayout
+        android:id="@+id/libraryGroupHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/viby_surface_high"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/libraryGroupBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/library_back_to_groups"
+            android:src="@drawable/ic_arrow_back" />
+
+        <TextView
+            android:id="@+id/libraryGroupTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textAppearance="?attr/textAppearanceTitleSmall" />
+
+        <ImageButton
+            android:id="@+id/libraryGroupPlay"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/bulk_play"
+            android:src="@drawable/ic_play" />
+    </LinearLayout>
+
+    <!-- Multi-selection -->
+    <LinearLayout
+        android:id="@+id/librarySelectionBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/viby_surface_high"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:visibility="gone">
+
+        <CheckBox
+            android:id="@+id/librarySelectAll"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/select_all" />
+
+        <TextView
+            android:id="@+id/librarySelectionCount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+        <ImageButton
+            android:id="@+id/librarySelectionPlay"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/bulk_play"
+            android:src="@drawable/ic_play" />
+
+        <ImageButton
+            android:id="@+id/librarySelectionQueue"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ctx_add_queue"
+            android:src="@drawable/ic_queue_music" />
+
+        <ImageButton
+            android:id="@+id/librarySelectionFavorite"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ctx_favorite"
+            android:src="@drawable/ic_favorite" />
+
+        <ImageButton
+            android:id="@+id/librarySelectionMore"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/bulk_actions"
+            android:src="@drawable/ic_more_vert" />
+
+        <ImageButton
+            android:id="@+id/librarySelectionClose"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@android:string/cancel"
+            android:src="@drawable/ic_close" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/libraryList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingEnd="32dp"
+            android:paddingVertical="4dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+        <TextView
+            android:id="@+id/libraryEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="32dp"
+            android:text="@string/library_empty"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="@color/viby_text_secondary"
+            android:visibility="gone" />
+
+        <com.example.viby.ui.widget.PlaylistFastScroller
+            android:id="@+id/libraryFastScroller"
+            android:layout_width="32dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:layout_marginVertical="8dp"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="@string/playlist_fast_scroll" />
+    </FrameLayout>
+
+    <include
+        android:id="@+id/libraryMiniPlayer"
+        layout="@layout/view_mini_player" />
+
+</LinearLayout>

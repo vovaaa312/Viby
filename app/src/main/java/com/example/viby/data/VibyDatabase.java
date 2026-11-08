@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Database(entities = {Track.class, PlaylistSource.class, PendingDownload.class},
-        version = 7, exportSchema = false)
+        version = 8, exportSchema = false)
 public abstract class VibyDatabase extends RoomDatabase {
 
     private static volatile VibyDatabase instance;
@@ -108,6 +108,21 @@ public abstract class VibyDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `album` TEXT");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `favorite` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `playCount` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `lastPlayedAt` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `metadataScanned` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
     public static VibyDatabase get(Context context) {
         if (instance == null) {
             synchronized (VibyDatabase.class) {
@@ -118,7 +133,7 @@ public abstract class VibyDatabase extends RoomDatabase {
                                     "viby.db")
                             .addMigrations(MIGRATION_1_2, MIGRATION_2_3,
                                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                                    MIGRATION_6_7)
+                                    MIGRATION_6_7, MIGRATION_7_8)
                             .build();
                 }
             }

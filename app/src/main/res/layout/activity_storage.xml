@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/storageToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        app:navigationIcon="?attr/homeAsUpIndicator"
+        app:title="@string/storage_title" />
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/storageProgress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:visibility="invisible" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="24dp">
+
+            <!-- Usage -->
+            <TextView
+                style="@style/Viby.StorageHeader"
+                android:text="@string/storage_section_usage" />
+
+            <TextView
+                android:id="@+id/storageSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="4dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/storage_folders_header"
+                android:textAppearance="?attr/textAppearanceTitleSmall" />
+
+            <TextView
+                android:id="@+id/storageFolders"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="2dp"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <!-- Cleanup -->
+            <TextView
+                style="@style/Viby.StorageHeader"
+                android:text="@string/storage_section_cleanup" />
+
+            <Button
+                android:id="@+id/storageCleanTemp"
+                style="@style/Viby.StorageButton" />
+
+            <Button
+                android:id="@+id/storageCleanOrphans"
+                style="@style/Viby.StorageButton" />
+
+            <Button
+                android:id="@+id/storageClearCache"
+                style="@style/Viby.StorageButton" />
+
+            <!-- Files -->
+            <TextView
+                style="@style/Viby.StorageHeader"
+                android:text="@string/storage_section_files" />
+
+            <TextView
+                style="@style/Viby.StorageHint"
+                android:text="@string/storage_relink_hint" />
+
+            <Button
+                android:id="@+id/storageRelink"
+                style="@style/Viby.StorageButton"
+                android:text="@string/storage_relink" />
+
+            <Button
+                android:id="@+id/storageRedownload"
+                style="@style/Viby.StorageButton" />
+
+            <!-- Backup -->
+            <TextView
+                style="@style/Viby.StorageHeader"
+                android:text="@string/storage_section_backup" />
+
+            <TextView
+                style="@style/Viby.StorageHint"
+                android:text="@string/storage_backup_hint" />
+
+            <Button
+                android:id="@+id/storageExport"
+                style="@style/Viby.StorageButton"
+                android:text="@string/storage_export_library" />
+
+            <Button
+                android:id="@+id/storageImport"
+                style="@style/Viby.StorageButton"
+                android:text="@string/storage_import_library" />
+
+            <!-- Mirror folder -->
+            <TextView
+                style="@style/Viby.StorageHeader"
+                android:text="@string/storage_section_mirror" />
+
+            <TextView
+                style="@style/Viby.StorageHint"
+                android:text="@string/storage_mirror_hint" />
+
+            <TextView
+                android:id="@+id/storageMirrorFolder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+            <Button
+                android:id="@+id/storageChooseFolder"
+                style="@style/Viby.StorageButton"
+                android:text="@string/storage_choose_folder" />
+
+            <Button
+                android:id="@+id/storageSyncNow"
+                style="@style/Viby.StorageButton"
+                android:text="@string/storage_sync_now" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/storageAutoSync"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minHeight="48dp"
+                android:text="@string/storage_auto_sync" />
+
+            <Button
+                android:id="@+id/storageRestoreFolder"
+                style="@style/Viby.StorageButton"
+                android:text="@string/storage_restore_folder" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

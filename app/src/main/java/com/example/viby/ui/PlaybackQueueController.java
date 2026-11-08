@@ -109,6 +109,29 @@ final class PlaybackQueueController {
                 playablePosition(tracks, track.id), true);
     }
 
+    /**
+     * Plays a list that is not a single playlist (library views, search results). The queue
+     * is detached from any playlist so playlist sync never replaces it.
+     */
+    boolean playTrackList(List<Track> tracks, long startTrackId) {
+        MediaController controller = viewModel.controller.getValue();
+        if (controller == null) {
+            return false;
+        }
+        List<Track> playable = playableTracks(tracks);
+        if (playable.isEmpty()) {
+            return false;
+        }
+        loadedPlaylist = null;
+        viewModel.setQueuePlaylist(null);
+        viewModel.setQueueCustomized(true);
+        controller.setMediaItems(toMediaItems(playable),
+                playablePosition(playable, startTrackId), 0L);
+        controller.prepare();
+        controller.play();
+        return true;
+    }
+
     void playResolvedStream(Track track, String playlist,
                             List<Track> latestTracks, String streamUrl) {
         MediaController controller = viewModel.controller.getValue();

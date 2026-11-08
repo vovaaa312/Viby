@@ -208,6 +208,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
         private final TextView title;
         private final TextView artist;
         private final TextView duration;
+        private final ImageView favorite;
         private final View currentIndicator;
         private final Typeface normalTitleTypeface;
         private final Typeface boldTitleTypeface;
@@ -220,6 +221,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             title = itemView.findViewById(R.id.trackItemTitle);
             artist = itemView.findViewById(R.id.trackItemArtist);
             duration = itemView.findViewById(R.id.trackItemDuration);
+            favorite = itemView.findViewById(R.id.trackFavorite);
             currentIndicator = itemView.findViewById(R.id.trackCurrentIndicator);
             normalTitleTypeface = title.getTypeface();
             boldTitleTypeface = Typeface.create(normalTitleTypeface, Typeface.BOLD);
@@ -239,6 +241,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.Holder> {
             }
             artist.setText(artistText);
             duration.setText(Formats.duration(track.durationMs));
+            favorite.setVisibility(track.favorite ? View.VISIBLE : View.GONE);
 
             check.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
             check.setChecked(selectedIds.contains(track.id));

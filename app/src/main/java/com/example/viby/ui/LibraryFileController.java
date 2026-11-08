@@ -70,15 +70,43 @@ final class LibraryFileController {
         });
     }
 
+    /** Favorites follow the song: every playlist copy of the same file or video is updated. */
+    void setFavorite(List<Track> tracks, boolean favorite) {
+        if (tracks.isEmpty()) {
+            return;
+        }
+        VibyDatabase.dbExecutor.execute(() -> {
+            TrackDao dao = VibyDatabase.get(context).trackDao();
+            for (Track track : tracks) {
+                dao.setFavorite(track.id, track.filePath, track.videoId, favorite);
+            }
+            post(() -> toast(context.getString(favorite
+                    ? R.string.favorites_added : R.string.favorites_removed,
+                    tracks.size())));
+        });
+    }
+
     void deletePlaylist(String playlist) {
         VibyDatabase.dbExecutor.execute(() -> {
             VibyDatabase database = VibyDatabase.get(context);
             TrackDao dao = database.trackDao();
             List<Track> tracks = dao.getPlaylistSync(playlist);
+            java.util.Set<String> deletedFiles = new java.util.HashSet<>();
+            java.util.Set<String> keptFiles = new java.util.HashSet<>();
             for (Track track : tracks) {
                 dao.delete(track);
+                if (!hasText(track.filePath) || !new File(track.filePath).isFile()) {
+                    continue;
+                }
                 deleteFileIfUnreferenced(dao, track.filePath);
+                if (new File(track.filePath).exists()) {
+                    keptFiles.add(track.filePath);
+                } else {
+                    deletedFiles.add(track.filePath);
+                }
             }
+            // a file kept for an earlier copy may have lost its last reference later
+            keptFiles.removeAll(deletedFiles);
             File directory = StorageHelper.playlistDir(context, playlist);
             File[] leftovers = directory.listFiles();
             if (leftovers != null) {
@@ -92,7 +120,11 @@ final class LibraryFileController {
             //noinspection ResultOfMethodCallIgnored
             directory.delete();
             database.playlistSourceDao().delete(playlist);
-            post(() -> toast(context.getString(R.string.playlist_deleted)));
+            int deleted = deletedFiles.size();
+            int kept = keptFiles.size();
+            post(() -> Toast.makeText(context,
+                    context.getString(R.string.playlist_deleted, deleted, kept),
+                    Toast.LENGTH_LONG).show());
         });
     }
 
@@ -139,6 +171,8 @@ final class LibraryFileController {
             track.title = hasText(metadata.title)
                     ? metadata.title : stripExtension(destination.getName());
             track.uploader = metadata.artist;
+            track.album = metadata.album;
+            track.metadataScanned = true;
             track.durationMs = metadata.durationMs;
             track.filePath = destination.getAbsolutePath();
             track.playlistName = playlist;
@@ -180,9 +214,10 @@ final class LibraryFileController {
             return new MediaInfo(
                     retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE),
                     retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM),
                     parseDuration(duration));
         } catch (Exception ignored) {
-            return new MediaInfo(null, null, 0L);
+            return new MediaInfo(null, null, null, 0L);
         } finally {
             try {
                 retriever.release();
@@ -243,11 +278,13 @@ final class LibraryFileController {
     private static final class MediaInfo {
         final String title;
         final String artist;
+        final String album;
         final long durationMs;
 
-        MediaInfo(String title, String artist, long durationMs) {
+        MediaInfo(String title, String artist, String album, long durationMs) {
             this.title = title;
             this.artist = artist;
+            this.album = album;
             this.durationMs = durationMs;
         }
     }

@@ -73,6 +73,15 @@
             android:textColor="?android:attr/textColorSecondary" />
     </LinearLayout>
 
+    <ImageView
+        android:id="@+id/trackFavorite"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginStart="8dp"
+        android:contentDescription="@string/favorite_desc"
+        android:src="@drawable/ic_favorite"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/trackItemDuration"
         android:layout_width="wrap_content"

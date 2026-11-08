@@ -89,6 +89,8 @@ dependencies {
     implementation libs.play.services.auth
 
     testImplementation libs.junit
+    // Android stubs org.json in local unit tests; the real implementation backs backup tests
+    testImplementation libs.org.json
     androidTestImplementation libs.espresso.core
     androidTestImplementation libs.ext.junit
 }

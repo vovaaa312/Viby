@@ -219,7 +219,7 @@ public class EqualizerActivity extends AppCompatActivity {
         }
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.eq_save_preset)
-                .setView(input)
+                .setView(DialogInputs.padded(input))
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                     String name = input.getText().toString().trim();
                     if (!name.isEmpty()) {

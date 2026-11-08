@@ -46,6 +46,9 @@ public class VibyApp extends Application {
         background.execute(this::initEngine);
         // недокачанное с прошлого запуска продолжаем качать
         com.example.viby.download.DownloadService.restorePending(this);
+        // partial files of downloads abandoned days ago and album tags of new files
+        com.example.viby.library.LibraryMaintenance.cleanStaleTempFilesAsync(this);
+        com.example.viby.library.LibraryMaintenance.scanMetadataAsync(this);
     }
 
     public LiveData<EngineState> getEngineState() {

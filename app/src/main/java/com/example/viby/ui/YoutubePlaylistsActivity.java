@@ -157,7 +157,7 @@ public class YoutubePlaylistsActivity extends AppCompatActivity {
         new MaterialAlertDialogBuilder(this)
                 .setTitle(playlist.title)
                 .setMessage(R.string.playlist_hint)
-                .setView(input)
+                .setView(DialogInputs.padded(input))
                 .setPositiveButton(R.string.btn_download, (dialog, which) -> {
                     String folder = input.getText().toString().trim();
                     DownloadService.enqueue(this, playlist.url,

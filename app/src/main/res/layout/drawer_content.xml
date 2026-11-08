@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Compact navigation drawer shared by portrait and landscape activity_main. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerContent"
+    android:layout_width="300dp"
+    android:layout_height="match_parent"
+    android:layout_gravity="start"
+    android:background="?attr/colorSurface"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/drawerTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="6dp"
+        android:text="@string/app_name"
+        android:textAppearance="?attr/textAppearanceTitleLarge" />
+
+    <TextView
+        android:id="@+id/drawerLibrary"
+        style="@style/Viby.DrawerItem"
+        android:text="@string/menu_library"
+        app:drawableStartCompat="@drawable/ic_library_music" />
+
+    <TextView
+        android:id="@+id/drawerDownload"
+        style="@style/Viby.DrawerItem"
+        android:text="@string/menu_download"
+        app:drawableStartCompat="@drawable/ic_download" />
+
+    <TextView
+        android:id="@+id/drawerEffects"
+        style="@style/Viby.DrawerItem"
+        android:text="@string/menu_effects"
+        app:drawableStartCompat="@drawable/ic_equalizer" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/menu_playlists_header"
+            android:textAllCaps="true"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textColor="?android:attr/textColorSecondary" />
+
+        <ImageButton
+            android:id="@+id/drawerPlaylistSync"
+            style="@style/Viby.DrawerIconButton"
+            android:contentDescription="@string/menu_playlist_sync"
+            android:src="@drawable/ic_sync"
+            android:tooltipText="@string/menu_playlist_sync" />
+    </LinearLayout>
+
+    <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/playlistsList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+    <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/drawerSettings"
+        style="@style/Viby.DrawerItem"
+        android:layout_height="48dp"
+        android:text="@string/menu_settings"
+        app:drawableStartCompat="@drawable/ic_settings" />
+
+</LinearLayout>

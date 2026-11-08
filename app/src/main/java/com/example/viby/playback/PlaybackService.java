@@ -51,6 +51,7 @@ public class PlaybackService extends MediaSessionService {
 
     private MediaSession mediaSession;
     private ExoPlayer player;
+    @Nullable private String countedMediaId;
     private final Handler stateHandler = new Handler(Looper.getMainLooper());
     private final Runnable queueSaver = () -> {
         if (player != null) {
@@ -76,6 +77,18 @@ public class PlaybackService extends MediaSessionService {
         public void onMediaItemTransition(@Nullable androidx.media3.common.MediaItem mediaItem,
                                           int reason) {
             scheduleQueueSave();
+            // a new item (or the same one again via repeat) is a new listen
+            countedMediaId = null;
+            if (player != null && player.isPlaying()) {
+                recordPlay();
+            }
+        }
+
+        @Override
+        public void onIsPlayingChanged(boolean isPlaying) {
+            if (isPlaying) {
+                recordPlay();
+            }
         }
 
         @Override
@@ -274,6 +287,31 @@ public class PlaybackService extends MediaSessionService {
         }
         player = null;
         super.onDestroy();
+    }
+
+    /**
+     * Counts a listen once the item actually starts playing, so restoring the queue at
+     * startup or pausing/resuming the same track does not inflate "recently played".
+     */
+    private void recordPlay() {
+        if (player == null || player.getCurrentMediaItem() == null) {
+            return;
+        }
+        String mediaId = player.getCurrentMediaItem().mediaId;
+        if (mediaId.equals(countedMediaId)) {
+            return;
+        }
+        countedMediaId = mediaId;
+        long trackId;
+        try {
+            trackId = Long.parseLong(mediaId);
+        } catch (NumberFormatException notLibraryTrack) {
+            return;
+        }
+        long playedAt = System.currentTimeMillis();
+        com.example.viby.data.VibyDatabase.dbExecutor.execute(() ->
+                com.example.viby.data.VibyDatabase.get(this).trackDao()
+                        .markPlayed(trackId, playedAt));
     }
 
     private void scheduleQueueSave() {

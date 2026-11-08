@@ -133,6 +133,58 @@ public class VibyDatabaseInstrumentedTest {
         assertNull(database.playlistSourceDao().getSync("favs"));
     }
 
+    @Test
+    public void favoritesAndPlaysFollowEveryCopyOfTheSameFile() {
+        long original = database.trackDao().insert(
+                track("a", "song", 0, true, "/music/a/song.mp3"));
+        long copy = database.trackDao().insert(
+                track("b", "song", 0, true, "/music/a/song.mp3"));
+        long other = database.trackDao().insert(
+                track("a", "other", 1, true, "/music/a/other.mp3"));
+        Track pendingCopy = track("c", "song", 0, false, "");
+        long pending = database.trackDao().insert(pendingCopy);
+
+        Track source = database.trackDao().getByIdSync(original);
+        database.trackDao().setFavorite(source.id, source.filePath, source.videoId, true);
+        database.trackDao().markPlayed(copy, 500L);
+        database.trackDao().markPlayed(copy, 900L);
+
+        assertTrue(database.trackDao().getByIdSync(copy).favorite);
+        assertTrue(database.trackDao().getByIdSync(pending).favorite);
+        assertFalse(database.trackDao().getByIdSync(other).favorite);
+        assertEquals(2, database.trackDao().getByIdSync(original).playCount);
+        assertEquals(900L, database.trackDao().getByIdSync(original).lastPlayedAt);
+        assertEquals(0, database.trackDao().getByIdSync(other).playCount);
+        // pending rows have no file, so they never collect plays through filePath = ''
+        assertEquals(0, database.trackDao().getByIdSync(pending).playCount);
+    }
+
+    @Test
+    public void relinkMissingAndMetadataQueriesUpdateLibraryState() {
+        long id = database.trackDao().insert(track("a", "song", 0, true, "/old/song.mp3"));
+
+        assertEquals(1, database.trackDao().getUnscannedSync(10).size());
+        database.trackDao().updateScannedMetadata("/old/song.mp3", "Album");
+        assertTrue(database.trackDao().getUnscannedSync(10).isEmpty());
+        assertEquals("Album", database.trackDao().getByIdSync(id).album);
+
+        database.trackDao().markFileMissing(id, Track.DOWNLOAD_WAITING, null, null,
+                "https://www.youtube.com/watch?v=song");
+        Track missing = database.trackDao().getByIdSync(id);
+        assertFalse(missing.downloaded);
+        assertEquals(Track.DOWNLOAD_WAITING, missing.downloadState);
+        assertEquals("https://www.youtube.com/watch?v=song", missing.sourceUrl);
+
+        database.trackDao().relinkFile(id, "/new/song.mp3");
+        Track relinked = database.trackDao().getByIdSync(id);
+        assertTrue(relinked.downloaded);
+        assertEquals("/new/song.mp3", relinked.filePath);
+        assertEquals(Track.DOWNLOAD_DOWNLOADED, relinked.downloadState);
+        assertEquals(1, database.trackDao().getReferencedFilePathsSync().size());
+        assertEquals(1, database.trackDao().getByIdsSync(
+                java.util.Collections.singletonList(id)).size());
+    }
+
     private static Track track(String playlist, String videoId, int position,
                                boolean downloaded, String filePath) {
         Track track = new Track();

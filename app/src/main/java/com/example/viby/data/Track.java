@@ -75,4 +75,17 @@ public class Track {
     public boolean downloadRequiresAuthorization;
 
     public int downloadProgress;
+
+    /** Album from embedded tags; null until the metadata scanner has read the file. */
+    public String album;
+
+    /** Favorites are shared by every row that points to the same media file. */
+    public boolean favorite;
+
+    public int playCount;
+
+    public long lastPlayedAt;
+
+    /** True once embedded tags (album) have been read from filePath. */
+    public boolean metadataScanned;
 }

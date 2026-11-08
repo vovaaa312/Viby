@@ -183,8 +183,8 @@
 
     <!-- Playlist deletion -->
     <string name="delete_playlist_title">Delete playlist?</string>
-    <string name="delete_playlist_message">"%1$s": %2$d track(s) will be deleted from the device along with their files.</string>
-    <string name="playlist_deleted">Playlist deleted</string>
+    <string name="delete_playlist_message">"%1$s": %2$d track(s) will be deleted along with their files. Files that are also in other playlists stay on the device.</string>
+    <string name="playlist_deleted">Playlist deleted. Files removed: %1$d, shared kept: %2$d</string>
 
     <!-- Playlist refresh -->
     <string name="refresh_playlist">Refresh playlist</string>
@@ -280,4 +280,108 @@
     <string name="delete_track_message">"%1$s" will be deleted along with its file.</string>
     <string name="btn_delete">Delete</string>
     <string name="ytdlp_not_ready">yt-dlp is still initializing, try again in a few seconds</string>
+
+    <!-- 1.2.9: favorites and bulk actions -->
+    <string name="ctx_favorite">Add to favorites</string>
+    <string name="ctx_unfavorite">Remove from favorites</string>
+    <string name="favorite_desc">Favorite</string>
+    <string name="favorites_added">Added to favorites: %1$d</string>
+    <string name="favorites_removed">Removed from favorites: %1$d</string>
+    <string name="bulk_actions">More actions</string>
+    <string name="bulk_play">Play</string>
+    <string name="bulk_retry_downloads">Retry failed downloads</string>
+    <string name="bulk_retry_started">Retrying downloads: %1$d</string>
+
+    <!-- 1.2.9: playlist export -->
+    <string name="export_playlist_action">Export playlist…</string>
+    <string name="export_playlist_title">Export \"%1$s\"</string>
+    <string name="export_playlist_m3u">M3U8 (other players, mirror folder)</string>
+    <string name="export_playlist_json">JSON (Viby, can be imported back)</string>
+    <string name="export_playlist_done">Playlist \"%1$s\" exported</string>
+
+    <!-- 1.2.9: storage screen -->
+    <string name="menu_storage">Storage and backups</string>
+    <string name="storage_title">Storage and backups</string>
+    <string name="storage_operation_failed">Operation failed: %1$s</string>
+    <string name="storage_scanning">Scanning storage…</string>
+    <string name="storage_section_usage">Usage</string>
+    <string name="storage_summary">Free on device: %1$s of %2$s\nLibrary files: %3$s (%4$d files)\nTracks: %5$d unique, %6$d entries in %7$d playlists\nNot downloaded: %8$d · download errors: %9$d · file missing: %10$d</string>
+    <string name="storage_folders_header">Folders</string>
+    <string name="storage_no_files">No downloaded files yet</string>
+    <string name="storage_section_cleanup">Cleanup</string>
+    <string name="storage_clean_temp">Delete temporary files: %1$d (%2$s)</string>
+    <string name="storage_clean_temp_confirm">Delete %1$d temporary files (%2$s) left by interrupted downloads and conversions? Empty folders are removed too.</string>
+    <string name="storage_clean_orphans">Delete files outside the library: %1$d (%2$s)</string>
+    <string name="storage_clean_orphans_confirm">These %1$d files (%2$s) are not used by any track in the library. Delete them?</string>
+    <string name="storage_clear_cache">Clear cache (covers, previews): %1$s</string>
+    <string name="storage_cache_cleared">Cache cleared: %1$s</string>
+    <string name="storage_files_deleted">Files deleted: %1$d</string>
+    <string name="storage_busy_downloads">Wait until downloads finish or pause them: their partial files are still in use</string>
+    <string name="storage_section_files">Files</string>
+    <string name="storage_relink_hint">Finds tracks whose files moved or disappeared (for example after reinstalling) and links them again: first on this device, then in the backup folder. Tracks that cannot be found become \"not downloaded\" and can be downloaded again.</string>
+    <string name="storage_relink">Check and relink files</string>
+    <string name="storage_redownload">Download missing tracks again: %1$d</string>
+    <string name="storage_redownload_started">Queued downloads: %1$d</string>
+    <string name="storage_relink_result">Checked: %1$d\nIn place: %2$d\nFound on device: %3$d\nRestored from backup folder: %4$d\nNow marked not downloaded: %5$d\nStill missing: %6$d</string>
+    <string name="storage_section_backup">Library backup</string>
+    <string name="storage_backup_hint">A JSON file with playlists, track order, favorites and play statistics. Audio files are not included; cookies and account data are never saved.</string>
+    <string name="storage_export_library">Export library…</string>
+    <string name="storage_import_library">Import library…</string>
+    <string name="storage_export_done">Library exported</string>
+    <string name="storage_import_result">Added: %1$d\nAlready in the library (merged): %2$d\nPlaylist sources restored: %3$d\nWithout a local file: %4$d</string>
+    <string name="storage_section_mirror">Backup folder</string>
+    <string name="storage_mirror_hint">Downloads are stored in the app folder, which Android deletes together with the app. Choose a folder (for example Music/Viby): Viby copies your music, M3U8 playlists and the library file there, so everything can be restored after reinstalling.</string>
+    <string name="storage_mirror_none">Folder not selected</string>
+    <string name="storage_mirror_current">Folder: %1$s\nLast synchronization: %2$s</string>
+    <string name="storage_mirror_never">never</string>
+    <string name="storage_mirror_lost">Access to %1$s was lost. Choose the folder again.</string>
+    <string name="storage_mirror_not_set">Backup folder is not selected or access was revoked</string>
+    <string name="storage_mirror_chosen">Folder selected. Copy the library there now, or restore the library from it if it already contains a Viby backup.</string>
+    <string name="storage_choose_folder">Choose folder…</string>
+    <string name="storage_sync_now">Synchronize now</string>
+    <string name="storage_sync_started">Copying the library to the backup folder…</string>
+    <string name="storage_sync_result">Copied: %1$d files (%2$s)\nAlready up to date: %3$d\nErrors: %4$d\nPlaylists written: %5$d</string>
+    <string name="storage_auto_sync">Synchronize automatically after downloads</string>
+    <string name="storage_restore_folder">Restore from folder</string>
+    <string name="storage_restore_no_backup">No library file in the folder: only files were relinked.</string>
+    <string name="storage_later">Later</string>
+    <string name="storage_not_mounted">Device storage is not available right now; try again later</string>
+    <string name="library_file_missing">The audio file is missing and the track has no YouTube source</string>
+
+    <!-- 1.2.9: library screen -->
+    <string name="menu_library">Library</string>
+    <string name="menu_settings">Settings</string>
+    <string name="library_search_hint">Search the whole library</string>
+    <string name="library_tab_tracks">Tracks</string>
+    <string name="library_tab_artists">Artists</string>
+    <string name="library_tab_albums">Albums</string>
+    <string name="library_tab_folders">Folders</string>
+    <string name="library_filter_all">All</string>
+    <string name="library_filter_favorites">Favorites</string>
+    <string name="library_filter_recently_added">Recently added</string>
+    <string name="library_filter_recently_played">Recently played</string>
+    <string name="library_filter_not_downloaded">Not downloaded</string>
+    <string name="library_filter_failed">Errors</string>
+    <string name="library_sort_default">Default for the filter</string>
+    <string name="library_sort_album">Album</string>
+    <string name="library_sort_last_played">Last played</string>
+    <string name="library_sort_play_count">Play count</string>
+    <string name="library_unknown_album">Unknown album</string>
+    <string name="library_unknown_folder">Unknown folder</string>
+    <string name="library_empty">Nothing found</string>
+    <string name="library_back_to_groups">Back</string>
+    <string name="library_not_downloaded">not downloaded</string>
+    <string name="library_not_downloaded_message">This track is not downloaded yet.</string>
+    <string name="library_listen_online">Listen online</string>
+    <string name="library_download_now">Download</string>
+    <string name="library_open_playlist">Open playlist \"%1$s\"</string>
+    <string name="library_open_playlist_short">Open playlist</string>
+    <string name="library_nothing_playable">No downloaded tracks to play</string>
+    <string name="library_player_not_ready">The player is still connecting, try again</string>
+    <string name="library_select_first">Select tracks first</string>
+    <string name="library_delete_message">Delete %1$d tracks from the device? All their playlist copies (%2$d entries) and files will be removed. Linked YouTube playlists are not changed.</string>
+    <plurals name="library_group_tracks">
+        <item quantity="one">%1$d track · %2$s</item>
+        <item quantity="other">%1$d tracks · %2$s</item>
+    </plurals>
 </resources>

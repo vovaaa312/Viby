@@ -42,6 +42,12 @@ public class LayoutContractInstrumentedTest {
                 R.layout.item_download_track,
                 R.layout.item_playback_queue,
                 R.layout.item_yt_playlist,
+                R.layout.activity_library,
+                R.layout.activity_storage,
+                R.layout.item_library_group,
+                R.layout.chip_filter,
+                R.layout.drawer_content,
+                R.layout.view_mini_player,
         };
         for (int orientation : new int[]{
                 Configuration.ORIENTATION_PORTRAIT,
@@ -68,6 +74,17 @@ public class LayoutContractInstrumentedTest {
     }
 
     @Test
+    public void compactDrawerKeepsEveryEntryInBothOrientations() {
+        int[] ids = {
+                R.id.drawerTitle, R.id.drawerDownload, R.id.drawerLibrary,
+                R.id.drawerEffects, R.id.drawerPlaylistSync, R.id.drawerSettings,
+                R.id.playlistsList,
+        };
+        assertIds(inflate(R.layout.activity_main, Configuration.ORIENTATION_PORTRAIT), ids);
+        assertIds(inflate(R.layout.activity_main, Configuration.ORIENTATION_LANDSCAPE), ids);
+    }
+
+    @Test
     public void lyricsAndPlaylistLayoutsKeepTheirInteractionContracts() {
         assertIds(inflate(R.layout.fragment_lyrics, Configuration.ORIENTATION_PORTRAIT),
                 R.id.lyricsProgress, R.id.lyricsStatus, R.id.lyricsSource,
@@ -76,7 +93,12 @@ public class LayoutContractInstrumentedTest {
                 R.id.tracksList, R.id.playlistFastScroller, R.id.searchInput,
                 R.id.addTracks, R.id.refreshPlaylist, R.id.miniPlayer,
                 R.id.selectionBar, R.id.selectionCount, R.id.selectionMove,
-                R.id.selectionDelete, R.id.selectionClose);
+                R.id.selectionDelete, R.id.selectionClose, R.id.selectionMore);
+        assertIds(inflate(R.layout.activity_library, Configuration.ORIENTATION_PORTRAIT),
+                R.id.libraryList, R.id.libraryFastScroller, R.id.libraryMiniPlayer,
+                R.id.miniTitle, R.id.miniPlay, R.id.miniPrev, R.id.miniNext);
+        assertIds(inflate(R.layout.fragment_playback_queue, Configuration.ORIENTATION_PORTRAIT),
+                R.id.playbackQueueList, R.id.playbackQueueFastScroller);
     }
 
     private static View inflate(@LayoutRes int layout, int orientation) {

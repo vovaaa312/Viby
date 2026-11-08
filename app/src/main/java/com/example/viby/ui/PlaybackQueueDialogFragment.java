@@ -36,6 +36,7 @@ public class PlaybackQueueDialogFragment extends BottomSheetDialogFragment {
     private PlaybackQueueAdapter adapter;
     private TextView empty;
     private RecyclerView list;
+    @Nullable private com.example.viby.ui.widget.PlaylistFastScroller fastScroller;
     private ItemTouchHelper itemTouchHelper;
     private boolean dragging;
     private boolean refreshPending;
@@ -99,6 +100,8 @@ public class PlaybackQueueDialogFragment extends BottomSheetDialogFragment {
             }
         });
         list.setAdapter(adapter);
+        fastScroller = view.findViewById(R.id.playbackQueueFastScroller);
+        fastScroller.attachTo(list);
         view.findViewById(R.id.resetPlaybackQueue).setOnClickListener(v -> {
             ((MainActivity) requireActivity()).resetPlaybackQueue();
             list.post(this::refresh);
@@ -188,6 +191,10 @@ public class PlaybackQueueDialogFragment extends BottomSheetDialogFragment {
 
     @Override
     public void onDestroyView() {
+        if (fastScroller != null) {
+            fastScroller.detachFromRecyclerView();
+            fastScroller = null;
+        }
         if (controller != null) {
             controller.removeListener(playerListener);
             controller = null;

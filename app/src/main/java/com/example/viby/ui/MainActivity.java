@@ -41,6 +41,10 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
+    private static final String STATE_EXPORT_PLAYLIST = "export_playlist";
+    /** Opens this playlist on the track list page (used by the library screen). */
+    static final String EXTRA_OPEN_PLAYLIST = "com.example.viby.extra.OPEN_PLAYLIST";
+    static final String EXTRA_OPEN_PLAYER = "com.example.viby.extra.OPEN_PLAYER";
     private PlayerViewModel viewModel;
     private DrawerLayout drawerLayout;
     private MaterialToolbar toolbar;
@@ -53,10 +57,22 @@ public class MainActivity extends AppCompatActivity {
 
     private ListenableFuture<MediaController> controllerFuture;
 
+    /** Playlist whose export is waiting for the user to pick a destination file. */
+    private String pendingExportPlaylist;
+    private final androidx.activity.result.ActivityResultLauncher<String> exportM3uLauncher =
+            registerForActivityResult(new ActivityResultContracts.CreateDocument(
+                    "audio/x-mpegurl"), uri -> writePlaylistExport(uri, false));
+    private final androidx.activity.result.ActivityResultLauncher<String> exportJsonLauncher =
+            registerForActivityResult(new ActivityResultContracts.CreateDocument(
+                    "application/json"), uri -> writePlaylistExport(uri, true));
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        if (savedInstanceState != null) {
+            pendingExportPlaylist = savedInstanceState.getString(STATE_EXPORT_PLAYLIST);
+        }
 
         viewModel = new ViewModelProvider(this).get(PlayerViewModel.class);
         youtubeSyncController = new YoutubeSyncController(this);
@@ -86,6 +102,14 @@ public class MainActivity extends AppCompatActivity {
             }
             if (item.getItemId() == R.id.action_sort) {
                 showSortDialog();
+                return true;
+            }
+            if (item.getItemId() == R.id.action_export_playlist) {
+                showExportPlaylistDialog();
+                return true;
+            }
+            if (item.getItemId() == R.id.action_library) {
+                startActivity(new Intent(this, LibraryActivity.class));
                 return true;
             }
             return false;
@@ -118,9 +142,45 @@ public class MainActivity extends AppCompatActivity {
         });
 
         requestNotificationPermissionIfNeeded();
+        if (savedInstanceState == null) {
+            openPlaylistFromIntent(getIntent());
+        }
+    }
+
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        openPlaylistFromIntent(intent);
+    }
+
+    private void openPlaylistFromIntent(@androidx.annotation.Nullable Intent intent) {
+        if (intent != null && intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)) {
+            intent.removeExtra(EXTRA_OPEN_PLAYER);
+            pager.setCurrentItem(0, false);
+            return;
+        }
+        String playlist = intent != null ? intent.getStringExtra(EXTRA_OPEN_PLAYLIST) : null;
+        if (playlist == null) {
+            return;
+        }
+        intent.removeExtra(EXTRA_OPEN_PLAYLIST);
+        viewModel.setActivePlaylist(playlist);
+        pager.setCurrentItem(1, false);
     }
 
     private void setUpDrawer() {
+        if (getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            // landscape is short: give the playlist list the title's room
+            findViewById(R.id.drawerTitle).setVisibility(android.view.View.GONE);
+        }
+
+        findViewById(R.id.drawerLibrary).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, LibraryActivity.class));
+        });
+
         findViewById(R.id.drawerDownload).setOnClickListener(v -> {
             drawerLayout.closeDrawers();
             startActivity(new Intent(this, DownloadActivity.class));
@@ -129,31 +189,6 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.drawerEffects).setOnClickListener(v -> {
             drawerLayout.closeDrawers();
             startActivity(new Intent(this, EqualizerActivity.class));
-        });
-
-        findViewById(R.id.drawerAccount).setOnClickListener(v -> {
-            drawerLayout.closeDrawers();
-            if (!com.example.viby.util.YtCookies.isLoggedIn(this)) {
-                startActivity(new Intent(this, YoutubeLoginActivity.class));
-                return;
-            }
-            String[] options = {
-                    getString(R.string.account_my_playlists),
-                    getString(R.string.account_logout),
-            };
-            new MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.menu_account)
-                    .setItems(options, (dialog, which) -> {
-                        if (which == 0) {
-                            startActivity(new Intent(this, YoutubePlaylistsActivity.class));
-                        } else {
-                            com.example.viby.util.YtCookies.clear(this, () ->
-                                    Toast.makeText(this, R.string.logged_out,
-                                            Toast.LENGTH_SHORT).show());
-                        }
-                    })
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show();
         });
 
         findViewById(R.id.drawerPlaylistSync).setOnClickListener(v -> {
@@ -179,25 +214,77 @@ public class MainActivity extends AppCompatActivity {
         playlistsList.setAdapter(adapter);
         viewModel.playlists.observe(this, adapter::submit);
 
-        findViewById(R.id.drawerCheckUpdates).setOnClickListener(v -> {
-            drawerLayout.closeDrawers();
-            appUpdateManager.checkManually();
-        });
+        findViewById(R.id.drawerSettings).setOnClickListener(this::showSettingsMenu);
+    }
 
-        findViewById(R.id.drawerUpdateYtdlp).setOnClickListener(v -> {
+    /** Rarely used tools live behind one "Settings" row to keep the drawer short. */
+    private void showSettingsMenu(android.view.View anchor) {
+        androidx.appcompat.widget.PopupMenu popup =
+                new androidx.appcompat.widget.PopupMenu(this, anchor,
+                        GravityCompat.START);
+        android.view.Menu menu = popup.getMenu();
+        menu.add(0, 1, 0, R.string.menu_storage);
+        menu.add(0, 2, 1, R.string.menu_account);
+        menu.add(0, 3, 2, R.string.menu_check_updates);
+        menu.add(0, 4, 3, R.string.menu_update_ytdlp);
+        popup.setOnMenuItemClickListener(item -> {
             drawerLayout.closeDrawers();
-            Toast.makeText(this, R.string.ytdlp_updating, Toast.LENGTH_SHORT).show();
-            ((VibyApp) getApplication()).updateYtDlp((status, error) -> {
-                if (error != null) {
-                    Toast.makeText(this,
-                            getString(R.string.ytdlp_update_error, error.getMessage()),
-                            Toast.LENGTH_LONG).show();
-                } else if (status == YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE) {
-                    Toast.makeText(this, R.string.ytdlp_up_to_date, Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(this, R.string.ytdlp_updated, Toast.LENGTH_SHORT).show();
-                }
-            });
+            switch (item.getItemId()) {
+                case 1:
+                    startActivity(new Intent(this, StorageActivity.class));
+                    return true;
+                case 2:
+                    showAccountMenu();
+                    return true;
+                case 3:
+                    appUpdateManager.checkManually();
+                    return true;
+                case 4:
+                    updateYtDlp();
+                    return true;
+                default:
+                    return false;
+            }
+        });
+        popup.show();
+    }
+
+    private void showAccountMenu() {
+        if (!com.example.viby.util.YtCookies.isLoggedIn(this)) {
+            startActivity(new Intent(this, YoutubeLoginActivity.class));
+            return;
+        }
+        String[] options = {
+                getString(R.string.account_my_playlists),
+                getString(R.string.account_logout),
+        };
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.menu_account)
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        startActivity(new Intent(this, YoutubePlaylistsActivity.class));
+                    } else {
+                        com.example.viby.util.YtCookies.clear(this, () ->
+                                Toast.makeText(this, R.string.logged_out,
+                                        Toast.LENGTH_SHORT).show());
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void updateYtDlp() {
+        Toast.makeText(this, R.string.ytdlp_updating, Toast.LENGTH_SHORT).show();
+        ((VibyApp) getApplication()).updateYtDlp((status, error) -> {
+            if (error != null) {
+                Toast.makeText(this,
+                        getString(R.string.ytdlp_update_error, error.getMessage()),
+                        Toast.LENGTH_LONG).show();
+            } else if (status == YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE) {
+                Toast.makeText(this, R.string.ytdlp_up_to_date, Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, R.string.ytdlp_updated, Toast.LENGTH_SHORT).show();
+            }
         });
     }
 
@@ -455,6 +542,73 @@ public class MainActivity extends AppCompatActivity {
         }
         playbackQueueController.playResolvedStream(
                 track, playlist, latestTracks, streamUrl);
+    }
+
+    /** Plays an arbitrary selection as a queue detached from the open playlist. */
+    void playTrackList(List<Track> tracks, long startTrackId) {
+        if (!playbackQueueController.playTrackList(tracks, startTrackId)) {
+            Toast.makeText(this, R.string.library_nothing_playable,
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    void setFavorite(List<Track> tracks, boolean favorite) {
+        libraryFileController.setFavorite(tracks, favorite);
+    }
+
+    // ------------------------------------------------------------ playlist export
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_EXPORT_PLAYLIST, pendingExportPlaylist);
+    }
+
+    private void showExportPlaylistDialog() {
+        String playlist = viewModel.getActivePlaylistName();
+        if (playlist == null) {
+            return;
+        }
+        String[] formats = {
+                getString(R.string.export_playlist_m3u),
+                getString(R.string.export_playlist_json),
+        };
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(getString(R.string.export_playlist_title, playlist))
+                .setItems(formats, (dialog, which) -> {
+                    pendingExportPlaylist = playlist;
+                    if (which == 0) {
+                        exportM3uLauncher.launch(
+                                com.example.viby.library.PlaylistExporter.fileName(
+                                        playlist, "m3u8"));
+                    } else {
+                        exportJsonLauncher.launch(
+                                com.example.viby.library.PlaylistExporter.fileName(
+                                        playlist, "json"));
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void writePlaylistExport(@androidx.annotation.Nullable android.net.Uri uri,
+                                     boolean json) {
+        String playlist = pendingExportPlaylist;
+        pendingExportPlaylist = null;
+        if (uri == null || playlist == null) {
+            return;
+        }
+        android.content.Context app = getApplicationContext();
+        com.example.viby.library.LibraryMaintenance.run(() -> {
+            String content = json
+                    ? com.example.viby.library.LibraryMaintenance.playlistJson(app, playlist)
+                    : com.example.viby.library.LibraryMaintenance.playlistM3u(app, playlist);
+            com.example.viby.library.LibraryMaintenance.writeText(app, uri, content);
+            return Boolean.TRUE;
+        }, (result, error) -> Toast.makeText(app, error == null
+                        ? getString(R.string.export_playlist_done, playlist)
+                        : getString(R.string.storage_operation_failed, error.getMessage()),
+                Toast.LENGTH_LONG).show());
     }
 
     /** Добавить треки в конец очереди воспроизведения (без изменения БД). */

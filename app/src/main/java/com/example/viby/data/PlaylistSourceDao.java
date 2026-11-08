@@ -20,4 +20,7 @@ public interface PlaylistSourceDao {
 
     @Query("DELETE FROM playlist_sources WHERE playlistName = :playlistName")
     void delete(String playlistName);
+
+    @Query("SELECT * FROM playlist_sources ORDER BY playlistName")
+    java.util.List<PlaylistSource> getAllSync();
 }

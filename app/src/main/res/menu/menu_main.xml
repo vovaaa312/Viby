@@ -23,4 +23,12 @@
         android:icon="@drawable/ic_sort"
         android:title="@string/sort_title"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/action_library"
+        android:title="@string/menu_library"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_export_playlist"
+        android:title="@string/export_playlist_action"
+        app:showAsAction="never" />
 </menu>
