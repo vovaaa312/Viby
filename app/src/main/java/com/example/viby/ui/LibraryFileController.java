@@ -42,8 +42,11 @@ final class LibraryFileController {
 
     void copyTracks(List<Track> tracks, String targetPlaylist, Runnable afterCopy) {
         VibyDatabase.dbExecutor.execute(() -> {
-            TrackDao dao = VibyDatabase.get(context).trackDao();
-            int total = PlaylistTrackCopier.create(dao).copy(tracks, targetPlaylist);
+            VibyDatabase database = VibyDatabase.get(context);
+            TrackDao dao = database.trackDao();
+            // shifting the playlist and inserting at the top must not be split
+            int total = database.runInTransaction(() ->
+                    PlaylistTrackCopier.create(dao).copy(tracks, targetPlaylist));
             post(() -> {
                 toast(context.getString(R.string.tracks_copied, total));
                 if (afterCopy != null) {

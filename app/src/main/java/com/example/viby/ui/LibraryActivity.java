@@ -136,6 +136,7 @@ public class LibraryActivity extends AppCompatActivity implements LibraryAdapter
     private PlaybackQueueController queueController;
     private LibraryFileController fileController;
     private TrackStreamResolver streamResolver;
+    private YoutubeSyncController youtubeSyncController;
     @Nullable private ListenableFuture<MediaController> controllerFuture;
     @Nullable private MediaController controller;
     private final Player.Listener playerListener = new Player.Listener() {
@@ -154,6 +155,8 @@ public class LibraryActivity extends AppCompatActivity implements LibraryAdapter
         queueController = new PlaybackQueueController(this, viewModel);
         fileController = new LibraryFileController(this);
         streamResolver = new TrackStreamResolver(this);
+        // registers an activity-result launcher, so it must be created in onCreate
+        youtubeSyncController = new YoutubeSyncController(this);
 
         tab = LibraryBrowser.parseEnum(LibraryBrowser.Tab.class,
                 prefs.getString(KEY_TAB, null), LibraryBrowser.Tab.TRACKS);
@@ -723,7 +726,10 @@ public class LibraryActivity extends AppCompatActivity implements LibraryAdapter
     }
 
     private void copyTo(List<Track> tracks, String playlist) {
-        fileController.copyTracks(tracks, fileController.sanitizePlaylistName(playlist), null);
+        String target = fileController.sanitizePlaylistName(playlist);
+        // same choice as on the playlist screen: Viby only, or Viby and the YouTube playlist
+        youtubeSyncController.offerTrackCopy(tracks, target,
+                afterCopy -> fileController.copyTracks(tracks, target, afterCopy));
         exitSelection();
     }
 
@@ -878,6 +884,7 @@ public class LibraryActivity extends AppCompatActivity implements LibraryAdapter
         handler.removeCallbacks(recompute);
         fastScroller.detachFromRecyclerView();
         streamResolver.destroy();
+        youtubeSyncController.destroy();
         super.onDestroy();
     }
 

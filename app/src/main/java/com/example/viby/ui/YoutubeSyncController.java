@@ -5,6 +5,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.annotation.Nullable;
 
 import com.example.viby.R;
@@ -42,12 +43,12 @@ final class YoutubeSyncController {
         }
     }
 
-    private final MainActivity activity;
+    private final AppCompatActivity activity;
     private final YoutubeAuthorizationController authorization;
     private final YoutubePlaylistSync synchronization;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    YoutubeSyncController(MainActivity activity) {
+    YoutubeSyncController(AppCompatActivity activity) {
         this.activity = activity;
         authorization = new YoutubeAuthorizationController(activity);
         synchronization = new YoutubePlaylistSync(activity);

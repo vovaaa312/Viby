@@ -226,10 +226,7 @@ public final class YoutubePlaylistSync {
                         track.youtubePosition++;
                     }
                 }
-                YoutubePlaylistOrder.sort(tracks);
-                for (int i = 0; i < tracks.size(); i++) {
-                    tracks.get(i).position = i;
-                }
+                YoutubePlaylistOrder.arrange(tracks);
                 dao.updateAll(tracks);
             });
         } catch (RuntimeException databaseFailure) {
@@ -303,10 +300,7 @@ public final class YoutubePlaylistSync {
             reordered = true;
         }
         if (!reordered) {
-            YoutubePlaylistOrder.sort(tracks);
-            for (int i = 0; i < tracks.size(); i++) {
-                tracks.get(i).position = i;
-            }
+            YoutubePlaylistOrder.arrange(tracks);
         }
         if (!tracks.isEmpty()) {
             dao.updateAll(tracks);
@@ -421,10 +415,7 @@ public final class YoutubePlaylistSync {
             track.youtubePosition = match != null ? match.position : null;
         }
         if (reorderLocally) {
-            YoutubePlaylistOrder.sort(tracks);
-            for (int i = 0; i < tracks.size(); i++) {
-                tracks.get(i).position = i;
-            }
+            YoutubePlaylistOrder.arrange(tracks);
         }
         return matches.size();
     }

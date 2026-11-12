@@ -2,6 +2,7 @@ package com.example.viby.ui;
 
 import android.app.PendingIntent;
 
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.IntentSenderRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -22,11 +23,11 @@ final class YoutubeAuthorizationController {
     private static final String YOUTUBE_WRITE_SCOPE =
             "https://www.googleapis.com/auth/youtube.force-ssl";
 
-    private final MainActivity activity;
+    private final AppCompatActivity activity;
     private final YoutubeAuthorizationSession session = new YoutubeAuthorizationSession();
     private final ActivityResultLauncher<IntentSenderRequest> launcher;
 
-    YoutubeAuthorizationController(MainActivity activity) {
+    YoutubeAuthorizationController(AppCompatActivity activity) {
         this.activity = activity;
         launcher = activity.registerForActivityResult(
                 new ActivityResultContracts.StartIntentSenderForResult(), result -> {

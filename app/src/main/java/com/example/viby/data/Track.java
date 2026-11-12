@@ -88,4 +88,10 @@ public class Track {
 
     /** True once embedded tags (album) have been read from filePath. */
     public boolean metadataScanned;
+
+    /**
+     * Sent to this playlist from Viby ("send to playlist"). Such rows keep the place the
+     * user gave them (the top) when the playlist is re-aligned with the YouTube order.
+     */
+    public boolean addedInViby;
 }

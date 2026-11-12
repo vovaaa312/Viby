@@ -34,7 +34,8 @@ public class PlaylistTrackCopierTest {
         Track copy = store.inserted.get(0);
         assertEquals(0L, copy.id);
         assertEquals("Target", copy.playlistName);
-        assertEquals(10, copy.position);
+        assertEquals(0, copy.position);
+        assertEquals(1, store.shiftedBy);
         assertEquals(source.filePath, copy.filePath);
         assertEquals(source.videoId, copy.videoId);
         assertEquals("mp3", copy.downloadFormat);
@@ -75,6 +76,41 @@ public class PlaylistTrackCopierTest {
         assertFalse(store.inserted.contains(local));
     }
 
+    @Test
+    public void copiesGoToTheTopInSelectedOrderAndKeepLibraryState() {
+        FakeStore store = new FakeStore();
+        Track first = track("a", "Source", "/a.mp3");
+        first.favorite = true;
+        first.playCount = 7;
+        first.album = "Album";
+        Track second = track("b", "Other", "/b.mp3");
+        Track sameSongAgain = track("a", "Other", "/a.mp3");
+
+        int copied = new PlaylistTrackCopier(store).copy(
+                java.util.Arrays.asList(first, second, sameSongAgain), "Target");
+
+        assertEquals(2, copied);
+        assertEquals(2, store.shiftedBy);
+        assertEquals("a", store.inserted.get(0).videoId);
+        assertEquals(0, store.inserted.get(0).position);
+        assertEquals("b", store.inserted.get(1).videoId);
+        assertEquals(1, store.inserted.get(1).position);
+        assertTrue(store.inserted.get(0).favorite);
+        assertEquals(7, store.inserted.get(0).playCount);
+        assertEquals("Album", store.inserted.get(0).album);
+        assertTrue(store.inserted.get(0).addedInViby);
+    }
+
+    @Test
+    public void nothingToCopyLeavesPositionsUntouched() {
+        FakeStore store = new FakeStore();
+        Track same = track("x", "Target", "/x.mp3");
+
+        assertEquals(0, new PlaylistTrackCopier(store).copy(
+                Collections.singletonList(same), "Target"));
+        assertEquals(0, store.shiftedBy);
+    }
+
     private static Track track(String videoId, String playlist, String filePath) {
         Track track = new Track();
         track.videoId = videoId;
@@ -105,9 +141,11 @@ public class PlaylistTrackCopierTest {
             return byFilePath.get(key(playlist, filePath));
         }
 
+        int shiftedBy;
+
         @Override
-        public int nextPosition(String playlist) {
-            return 10 + inserted.size();
+        public void shiftPositions(String playlist, int count) {
+            shiftedBy += count;
         }
 
         @Override

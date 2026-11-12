@@ -12,7 +12,10 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.graphics.drawable.Drawable;
+
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.RequestBuilder;
 import com.example.viby.R;
 import com.example.viby.data.Track;
 import com.example.viby.library.LibraryBrowser;
@@ -200,9 +203,18 @@ final class LibraryAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             int fallback = groupTab == LibraryBrowser.Tab.ALBUMS ? R.drawable.ic_album
                     : groupTab == LibraryBrowser.Tab.FOLDERS ? R.drawable.ic_folder
                     : R.drawable.ic_person;
-            if (groupTab == LibraryBrowser.Tab.ALBUMS && group.firstThumbnail() != null) {
-                Glide.with(icon).load(group.firstThumbnail()).placeholder(fallback)
-                        .error(fallback).centerCrop().into(icon);
+            // like the desktop app: an artist or album shows the cover of its first track,
+            // artists as a circle so the two tabs are easy to tell apart
+            String cover = groupTab == LibraryBrowser.Tab.FOLDERS ? null : group.firstThumbnail();
+            if (cover != null) {
+                RequestBuilder<Drawable> request = Glide.with(icon).load(cover)
+                        .placeholder(fallback).error(fallback);
+                if (groupTab == LibraryBrowser.Tab.ARTISTS) {
+                    request = request.circleCrop();
+                } else {
+                    request = request.centerCrop();
+                }
+                request.into(icon);
             } else {
                 Glide.with(icon).clear(icon);
                 icon.setImageResource(fallback);

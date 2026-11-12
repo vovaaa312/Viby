@@ -40,6 +40,31 @@ public class YoutubePlaylistOrderTest {
     }
 
     @Test
+    public void tracksSentFromVibyKeepTheirTopSlotWhenYouTubeOrderIsApplied() {
+        // the user sent "sent" to the top; YouTube appended it at the end of its playlist
+        Track sent = track(1, "sent", 0);
+        sent.addedInViby = true;
+        Track a = track(2, "a", 1);
+        Track b = track(3, "b", 2);
+        List<Track> tracks = new ArrayList<>(java.util.Arrays.asList(sent, a, b));
+
+        Map<String, Integer> sourcePositions = new HashMap<>();
+        sourcePositions.put("b", 0);
+        sourcePositions.put("a", 1);
+        sourcePositions.put("sent", 2);
+
+        YoutubePlaylistOrder.apply(tracks, sourcePositions);
+
+        assertEquals(1, tracks.get(0).id);
+        assertEquals(3, tracks.get(1).id);
+        assertEquals(2, tracks.get(2).id);
+        assertEquals(Integer.valueOf(2), tracks.get(0).youtubePosition);
+        for (int i = 0; i < tracks.size(); i++) {
+            assertEquals(i, tracks.get(i).position);
+        }
+    }
+
+    @Test
     public void sortRestoresStoredYouTubeOrderAfterAnotherSort() {
         Track older = track(1, "older", 0);
         older.youtubePosition = 1;

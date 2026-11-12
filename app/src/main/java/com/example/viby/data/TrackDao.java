@@ -40,6 +40,10 @@ public interface TrackDao {
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM tracks WHERE playlistName = :playlist")
     int nextPosition(String playlist);
 
+    /** Makes room at the top of a playlist for {@code count} new rows. */
+    @Query("UPDATE tracks SET position = position + :count WHERE playlistName = :playlist")
+    void shiftPositions(String playlist, int count);
+
     @Query("SELECT EXISTS(SELECT 1 FROM tracks WHERE playlistName = :playlist "
             + "AND videoId = :videoId AND downloaded = 1)")
     boolean isDownloaded(String playlist, String videoId);
