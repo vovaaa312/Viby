@@ -12,10 +12,11 @@ Viby is an experimental, AIMP-inspired music player for Android that turns YouTu
 
 - Accept a YouTube video or playlist URL entered in Viby or shared from the YouTube app.
 - Run bundled `yt-dlp` and FFmpeg entirely on the device.
-- Produce MP3 files with titles, artists, thumbnails, and other available metadata.
+- Produce MP3 files (best VBR, 320, 192, or 128 kbit/s) or save YouTube's own AAC stream as M4A without re-encoding, with titles, artists, thumbnails, and other available metadata.
 - Sign in to YouTube through a WebView and export cookies for content that requires an account.
 - Update the bundled extractor daily or on demand without waiting for a Viby release.
 - Refresh a previously downloaded YouTube playlist and restore the source order with the **Original YouTube order** sorting option.
+- Check every downloaded YouTube playlist for new tracks when the app starts and download them in the background (can be turned off in Settings).
 - Detect duplicate tracks and ask whether to reuse the existing local file instead of silently downloading it again.
 - Reuse one downloaded audio file across playlists that contain the same YouTube track, avoiding duplicate storage usage.
 
@@ -50,6 +51,10 @@ The current **smart download** implementation uses metadata placeholders, on-dem
 - The currently playing track is brought into view at the top when the queue panel opens.
 - Shuffle, repeat, previous/next, seeking, full player, and persistent mini player.
 - Lyrics panel pulled up from the player, using YouTube Music lyrics first and YouTube manual/automatic subtitles as fallbacks.
+- Volume leveling: every track is measured once (EBU R128 loudness) and played at a common level; quiet tracks are boosted through a limiter so they do not clip. Measuring happens while charging, and the playing and next track are measured right away.
+- Smooth track changes: the end of a track fades out and the next one fades in (off, 1 s, 3 s, or a custom length up to 12 s).
+- Gapless playback of MP3 files with encoder delay/padding information.
+- Sleep timer: stop at the end of the current track or after any time picked in hours, minutes, and seconds, with a 15-second fade-out.
 
 ### Library
 
@@ -65,11 +70,12 @@ The current **smart download** implementation uses metadata placeholders, on-dem
 ### Playlists and interface
 
 - Playlist-based local library backed by Room.
-- Create and delete playlists, search the active playlist, sort tracks, and move or copy tracks between playlists.
+- Create and delete playlists, search the active playlist (with a clear button that also hides the keyboard), sort tracks, and move or copy tracks between playlists.
 - Multi-select and contextual track actions, including favorites.
 - Draggable scrollbars in playlists, the Library, and the playback queue for navigating hundreds of tracks.
 - A shared mini player on the playlist and Library screens.
-- A compact AIMP-like navigation drawer: Library, Download, and Effects on top, the playlist list below, and rarely used tools (storage, YouTube account, update checks, `yt-dlp` update) under **Settings**.
+- A compact AIMP-like navigation drawer: Library, Download, and Effects on top, the playlist list below, and **Settings** at the bottom.
+- One **Settings** screen with sections for playback, downloads, YouTube account, storage and backups, and app updates; each section shows its current values.
 - Monochrome light and dark themes.
 - Dedicated portrait, landscape, phone, and tablet layouts.
 - App-scoped storage, so normal storage permissions are not required.
@@ -112,10 +118,10 @@ The **Storage & backups** screen (drawer → **Settings**) protects the library:
 
 - Only `arm64-v8a` phones/tablets and `x86_64` emulators are included in the APK.
 - The APK is large (currently roughly 117 MB) because it bundles Python, `yt-dlp`, and FFmpeg.
-- Viby does not yet provide a genre view, tag editor, synchronized line-by-line lyrics, ReplayGain, gapless playback, crossfade, sleep timer, Android Auto browser, widgets, Chromecast, or selectable download quality/format.
+- Viby does not yet provide a genre view, tag editor, synchronized line-by-line lyrics, an Android Auto browser, widgets, or Chromecast. Track changes fade out and in rather than overlapping two tracks.
 - Download throughput for large playlists still needs profiling and optimization. Jobs currently prioritize correctness and deterministic state over maximum parallelism.
 - Release APKs use a permanent local signing key. CI-generated and reproducible release builds are still planned.
-- The regression suite currently contains 135 local unit tests and 30 Android instrumentation tests. `lintDebug` passes without errors; remaining warnings are tracked technical debt.
+- The regression suite currently contains 154 local unit tests and 30 Android instrumentation tests. `lintDebug` passes without errors; remaining warnings are tracked technical debt.
 - OAuth, live YouTube/yt-dlp behavior, network interruption recovery, Bluetooth/audio-focus behavior, and real update installation still require manual smoke testing.
 - YouTube login cookies are sensitive data. Backup exclusions and further WebView/cookie hardening are planned.
 
@@ -138,7 +144,7 @@ The **Storage & backups** screen (drawer → **Settings**) protects the library:
 
 ### Player and library completeness
 
-- Consider ReplayGain, gapless playback, crossfade, sleep timer, tag editing, synchronized lyrics, Android Auto, widgets, and quality/format selection.
+- Add a home-screen widget, an Android Auto browser, and synchronized lyrics; consider tag editing and Chromecast later.
 
 ## Building
 

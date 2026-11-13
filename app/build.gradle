@@ -22,8 +22,8 @@ android {
         applicationId "com.example.viby"
         minSdk 24
         targetSdk 36
-        versionCode 15
-        versionName "1.3.0"
+        versionCode 16
+        versionName "1.4.0"
 
         ndk {
             // youtubedl-android ships native python/ffmpeg only for these ABIs
