@@ -365,6 +365,8 @@ public class PlayerFragment extends Fragment {
         long duration = Math.max(0, controller.getDuration());
         long position = Math.max(0, controller.getCurrentPosition());
         if (duration > 0) {
+            // the decoder can run a few ms past the container duration; never show 4:41 / 4:40
+            position = Math.min(position, duration);
             waveform.setProgress(position / (float) duration);
             durationText.setText(Formats.duration(duration));
         } else {

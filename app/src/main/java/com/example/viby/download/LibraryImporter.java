@@ -89,6 +89,9 @@ final class LibraryImporter {
                 ? uploader : reusable.uploader;
         target.durationMs = durationMs > 0 ? durationMs : reusable.durationMs;
         target.filePath = reusable.filePath;
+        target.loudnessLufs = reusable.loudnessLufs;
+        target.loudnessPeak = reusable.loudnessPeak;
+        target.loudnessScanned = reusable.loudnessScanned;
         target.playlistName = playlist;
         target.thumbnailUrl = reusable.thumbnailUrl != null
                 ? reusable.thumbnailUrl : thumbnailUrl(videoId);
@@ -116,6 +119,10 @@ final class LibraryImporter {
         target.uploader = uploader;
         target.durationMs = durationMs;
         target.filePath = mediaFile.getAbsolutePath();
+        // a freshly downloaded file has to be measured again
+        target.loudnessLufs = null;
+        target.loudnessPeak = null;
+        target.loudnessScanned = false;
         target.playlistName = playlist;
         target.thumbnailUrl = thumbnailUrl(videoId);
         target.youtubePosition = youtubePosition;

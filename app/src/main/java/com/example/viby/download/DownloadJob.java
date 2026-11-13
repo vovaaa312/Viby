@@ -94,6 +94,13 @@ public class DownloadJob {
     public volatile long queuePosition;
     /** Persisted order of video IDs, populated after playlist metadata is fetched. */
     public volatile String trackOrderJson;
+    /**
+     * Started by the check for new tracks at app launch, not by the user: tracks that failed
+     * for good are not retried, and a result is only announced when something was added.
+     */
+    public volatile boolean automatic;
+    /** Tracks of a playlist job that were actually downloaded, not already in the library. */
+    public volatile int newCount;
 
     public DownloadJob(String url, String playlistName, boolean isPlaylist) {
         this.url = url;

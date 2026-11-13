@@ -94,4 +94,15 @@ public class Track {
      * user gave them (the top) when the playlist is re-aligned with the YouTube order.
      */
     public boolean addedInViby;
+
+    /** Integrated loudness (EBU R128) of filePath, or null if unknown or silent. */
+    @androidx.annotation.Nullable
+    public Float loudnessLufs;
+
+    /** Sample peak of filePath, 0..1; used to boost quiet tracks without clipping. */
+    @androidx.annotation.Nullable
+    public Float loudnessPeak;
+
+    /** True once loudness analysis ran for filePath (also when it failed). */
+    public boolean loudnessScanned;
 }

@@ -28,6 +28,12 @@ public class DownloadActivity extends AppCompatActivity {
     private EditText playlistInput;
     private CheckBox wholePlaylistCheck;
     private ItemTouchHelper itemTouchHelper;
+    private Button formatButton;
+
+    private void updateFormatButton() {
+        formatButton.setText(getString(R.string.download_format_summary,
+                DownloadFormatDialog.currentLabel(this)));
+    }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -43,6 +49,10 @@ public class DownloadActivity extends AppCompatActivity {
         wholePlaylistCheck = findViewById(R.id.wholePlaylistCheck);
         Button downloadButton = findViewById(R.id.downloadButton);
         RecyclerView downloadsList = findViewById(R.id.downloadsList);
+        formatButton = findViewById(R.id.downloadFormatButton);
+        formatButton.setOnClickListener(v ->
+                DownloadFormatDialog.show(this, this::updateFormatButton));
+        updateFormatButton();
 
         DownloadsAdapter adapter = new DownloadsAdapter(new DownloadsAdapter.Listener() {
             @Override

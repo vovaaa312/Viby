@@ -24,7 +24,6 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.viby.R;
-import com.example.viby.VibyApp;
 import com.example.viby.data.Track;
 import com.example.viby.data.VibyDatabase;
 import com.example.viby.download.DownloadService;
@@ -33,7 +32,6 @@ import com.example.viby.update.AppUpdateManager;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.yausername.youtubedl_android.YoutubeDL;
 
 import java.io.File;
 import java.util.List;
@@ -112,8 +110,13 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, LibraryActivity.class));
                 return true;
             }
+            if (item.getItemId() == R.id.action_sleep_timer) {
+                showSleepTimerDialog();
+                return true;
+            }
             return false;
         });
+        updateSleepTimerTitle();
 
         pager = findViewById(R.id.pager);
         pager.setAdapter(new FragmentStateAdapter(this) {
@@ -144,6 +147,8 @@ public class MainActivity extends AppCompatActivity {
         requestNotificationPermissionIfNeeded();
         if (savedInstanceState == null) {
             openPlaylistFromIntent(getIntent());
+            // new tracks of YouTube playlists are fetched in the background at launch
+            com.example.viby.download.PlaylistAutoUpdate.runIfDue(this);
         }
     }
 
@@ -214,77 +219,9 @@ public class MainActivity extends AppCompatActivity {
         playlistsList.setAdapter(adapter);
         viewModel.playlists.observe(this, adapter::submit);
 
-        findViewById(R.id.drawerSettings).setOnClickListener(this::showSettingsMenu);
-    }
-
-    /** Rarely used tools live behind one "Settings" row to keep the drawer short. */
-    private void showSettingsMenu(android.view.View anchor) {
-        androidx.appcompat.widget.PopupMenu popup =
-                new androidx.appcompat.widget.PopupMenu(this, anchor,
-                        GravityCompat.START);
-        android.view.Menu menu = popup.getMenu();
-        menu.add(0, 1, 0, R.string.menu_storage);
-        menu.add(0, 2, 1, R.string.menu_account);
-        menu.add(0, 3, 2, R.string.menu_check_updates);
-        menu.add(0, 4, 3, R.string.menu_update_ytdlp);
-        popup.setOnMenuItemClickListener(item -> {
+        findViewById(R.id.drawerSettings).setOnClickListener(v -> {
             drawerLayout.closeDrawers();
-            switch (item.getItemId()) {
-                case 1:
-                    startActivity(new Intent(this, StorageActivity.class));
-                    return true;
-                case 2:
-                    showAccountMenu();
-                    return true;
-                case 3:
-                    appUpdateManager.checkManually();
-                    return true;
-                case 4:
-                    updateYtDlp();
-                    return true;
-                default:
-                    return false;
-            }
-        });
-        popup.show();
-    }
-
-    private void showAccountMenu() {
-        if (!com.example.viby.util.YtCookies.isLoggedIn(this)) {
-            startActivity(new Intent(this, YoutubeLoginActivity.class));
-            return;
-        }
-        String[] options = {
-                getString(R.string.account_my_playlists),
-                getString(R.string.account_logout),
-        };
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.menu_account)
-                .setItems(options, (dialog, which) -> {
-                    if (which == 0) {
-                        startActivity(new Intent(this, YoutubePlaylistsActivity.class));
-                    } else {
-                        com.example.viby.util.YtCookies.clear(this, () ->
-                                Toast.makeText(this, R.string.logged_out,
-                                        Toast.LENGTH_SHORT).show());
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
-    }
-
-    private void updateYtDlp() {
-        Toast.makeText(this, R.string.ytdlp_updating, Toast.LENGTH_SHORT).show();
-        ((VibyApp) getApplication()).updateYtDlp((status, error) -> {
-            if (error != null) {
-                Toast.makeText(this,
-                        getString(R.string.ytdlp_update_error, error.getMessage()),
-                        Toast.LENGTH_LONG).show();
-            } else if (status == YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE) {
-                Toast.makeText(this, R.string.ytdlp_up_to_date, Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, R.string.ytdlp_updated, Toast.LENGTH_SHORT).show();
-            }
+            startActivity(new Intent(this, SettingsActivity.class));
         });
     }
 
@@ -308,8 +245,9 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, getString(R.string.track_radio_preparing, title),
                 Toast.LENGTH_SHORT).show();
         String radioUrl = com.example.viby.util.YoutubeUrlParser.radioMixUrl(videoId);
-        String requestedName = com.example.viby.util.StorageHelper.sanitize(
-                getString(R.string.track_radio_playlist_name, title));
+        // only the folder name is sanitized (StorageHelper.playlistDir), so ':' stays here
+        String requestedName = getString(R.string.track_radio_playlist_name, title)
+                .replaceAll("[\\x00-\\x1f]", " ").trim();
         VibyDatabase.dbExecutor.execute(() -> {
             String playlist = availablePlaylistName(requestedName);
             runOnUiThread(() -> {
@@ -349,10 +287,16 @@ public class MainActivity extends AppCompatActivity {
         if (appUpdateManager != null) {
             appUpdateManager.onResume();
         }
+        updateSleepTimerTitle();
+        com.example.viby.playback.SleepTimer.prefs(this)
+                .registerOnSharedPreferenceChangeListener(sleepTimerListener);
     }
 
     @Override
     protected void onPause() {
+        com.example.viby.playback.SleepTimer.prefs(this)
+                .unregisterOnSharedPreferenceChangeListener(sleepTimerListener);
+        sleepTitleHandler.removeCallbacks(sleepTitleTick);
         if (appUpdateManager != null) {
             appUpdateManager.onPause();
         }
@@ -390,6 +334,136 @@ public class MainActivity extends AppCompatActivity {
     /** Переключиться на страницу плеера (тап по мини-плееру). */
     void showPlayerPage() {
         pager.setCurrentItem(0, true);
+    }
+
+    // ---------------------------------------------------------- sleep timer
+
+    /** Keeps the menu title current: the countdown moves and the service clears the timer. */
+    private final android.os.Handler sleepTitleHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable sleepTitleTick = this::updateSleepTimerTitle;
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener
+            sleepTimerListener = (prefs, key) -> updateSleepTimerTitle();
+
+    private String sleepTimerTitle() {
+        if (com.example.viby.playback.SleepTimer.isEndOfTrack(this)) {
+            return getString(R.string.sleep_timer_active_track);
+        }
+        long deadline = com.example.viby.playback.SleepTimer.deadline(this);
+        if (deadline > 0) {
+            return getString(R.string.sleep_timer_active,
+                    com.example.viby.playback.SleepTimer.format(
+                            com.example.viby.playback.SleepTimer.secondsLeft(
+                                    deadline, System.currentTimeMillis())));
+        }
+        return getString(R.string.sleep_timer_title);
+    }
+
+    private void updateSleepTimerTitle() {
+        if (toolbar == null) {
+            return;
+        }
+        sleepTitleHandler.removeCallbacks(sleepTitleTick);
+        if (com.example.viby.playback.SleepTimer.deadline(this) > 0) {
+            // the countdown is shown to the second
+            sleepTitleHandler.postDelayed(sleepTitleTick, 1_000L);
+        }
+        android.view.MenuItem item = toolbar.getMenu().findItem(R.id.action_sleep_timer);
+        if (item != null) {
+            item.setTitle(sleepTimerTitle());
+        }
+    }
+
+    /** "End of track", a free time picker and, while running, "turn off". */
+    private void showSleepTimerDialog() {
+        boolean active = com.example.viby.playback.SleepTimer.isActive(this);
+        List<String> labels = new java.util.ArrayList<>();
+        labels.add(getString(R.string.sleep_timer_end_of_track));
+        labels.add(getString(R.string.sleep_timer_custom));
+        if (active) {
+            labels.add(getString(R.string.sleep_timer_off));
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(sleepTimerTitle())
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    if (which == 0) {
+                        sendSleepTimer(0, true);
+                        Toast.makeText(this, R.string.sleep_timer_set_track,
+                                Toast.LENGTH_SHORT).show();
+                    } else if (which == 1) {
+                        showSleepTimePicker();
+                    } else {
+                        sendSleepTimer(0, false);
+                        Toast.makeText(this, R.string.sleep_timer_cancelled,
+                                Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Hours, minutes and seconds wheels; opens on the duration picked last time. */
+    private void showSleepTimePicker() {
+        android.view.View content = getLayoutInflater().inflate(R.layout.dialog_sleep_timer, null);
+        android.widget.NumberPicker hours = content.findViewById(R.id.sleepHours);
+        android.widget.NumberPicker minutes = content.findViewById(R.id.sleepMinutes);
+        android.widget.NumberPicker seconds = content.findViewById(R.id.sleepSeconds);
+        android.widget.NumberPicker.Formatter twoDigits =
+                value -> String.format(java.util.Locale.ROOT, "%02d", value);
+        hours.setMinValue(0);
+        hours.setMaxValue(23);
+        minutes.setMinValue(0);
+        minutes.setMaxValue(59);
+        minutes.setFormatter(twoDigits);
+        seconds.setMinValue(0);
+        seconds.setMaxValue(59);
+        seconds.setFormatter(twoDigits);
+        int last = com.example.viby.playback.SleepTimer.lastSeconds(this);
+        hours.setValue(Math.min(23, last / 3600));
+        minutes.setValue(last % 3600 / 60);
+        seconds.setValue(last % 60);
+
+        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.sleep_timer_pick_title)
+                .setView(content)
+                .setPositiveButton(R.string.sleep_timer_start, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+        // set by hand so a zero time keeps the dialog open instead of silently doing nothing
+        dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> {
+            hours.clearFocus();
+            minutes.clearFocus();
+            seconds.clearFocus();
+            int total = hours.getValue() * 3600 + minutes.getValue() * 60 + seconds.getValue();
+            if (total <= 0) {
+                Toast.makeText(this, R.string.sleep_timer_zero, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            com.example.viby.playback.SleepTimer.setLastSeconds(this, total);
+            sendSleepTimer(total, false);
+            Toast.makeText(this, getString(R.string.sleep_timer_set,
+                    com.example.viby.playback.SleepTimer.format(total)),
+                    Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+    }
+
+    private void sendSleepTimer(int seconds, boolean endOfTrack) {
+        MediaController controller = viewModel.controller.getValue();
+        if (controller == null) {
+            Toast.makeText(this, R.string.library_player_not_ready, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Bundle args = new Bundle();
+        args.putInt(com.example.viby.playback.SleepTimer.EXTRA_SECONDS, seconds);
+        args.putBoolean(com.example.viby.playback.SleepTimer.EXTRA_END_OF_TRACK, endOfTrack);
+        com.google.common.util.concurrent.ListenableFuture<
+                androidx.media3.session.SessionResult> result =
+                controller.sendCustomCommand(new androidx.media3.session.SessionCommand(
+                        com.example.viby.playback.SleepTimer.ACTION_SET, Bundle.EMPTY), args);
+        // the service stores the new state; refresh the menu title once it has
+        result.addListener(this::updateSleepTimerTitle,
+                ContextCompat.getMainExecutor(this));
     }
 
     // -------------------------------------------------------------- sorting

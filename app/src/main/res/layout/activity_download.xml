@@ -58,6 +58,14 @@
             android:visibility="gone" />
 
         <Button
+            android:id="@+id/downloadFormatButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:maxLines="1" />
+
+        <Button
             android:id="@+id/downloadButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

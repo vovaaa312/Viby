@@ -44,13 +44,19 @@ final class AudioDownloader {
     YoutubeDLRequest buildRequest(String videoUrl, File directory,
                                   String baseName, String format,
                                   @Nullable String playerClients) {
+        return buildRequest(videoUrl, directory, baseName, format, "0", playerClients);
+    }
+
+    YoutubeDLRequest buildRequest(String videoUrl, File directory,
+                                  String baseName, String format, String audioQuality,
+                                  @Nullable String playerClients) {
         String template = new File(directory,
                 baseName.replace("%", "%%") + ".%(ext)s").getAbsolutePath();
         YoutubeDLRequest request = new YoutubeDLRequest(videoUrl);
         request.addOption("--no-playlist");
         request.addOption("--no-mtime");
         request.addOption("-o", template);
-        mediaConverter.configure(request, format);
+        mediaConverter.configure(request, format, audioQuality);
         if (playerClients != null) {
             request.addOption("--extractor-args",
                     "youtube:player_client=" + playerClients);
@@ -62,8 +68,15 @@ final class AudioDownloader {
     File download(String videoUrl, File directory, String baseName,
                   String format, @Nullable String playerClients,
                   String processId, ProgressListener listener) throws Exception {
+        return download(videoUrl, directory, baseName, format, "0", playerClients,
+                processId, listener);
+    }
+
+    File download(String videoUrl, File directory, String baseName,
+                  String format, String audioQuality, @Nullable String playerClients,
+                  String processId, ProgressListener listener) throws Exception {
         YoutubeDLRequest request = buildRequest(
-                videoUrl, directory, baseName, format, playerClients);
+                videoUrl, directory, baseName, format, audioQuality, playerClients);
         backend.execute(request, processId, listener);
         return mediaConverter.findOutput(directory, baseName, format);
     }

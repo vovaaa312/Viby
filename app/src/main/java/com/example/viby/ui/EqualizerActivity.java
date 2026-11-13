@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.viby.R;
 import com.example.viby.playback.EqFx;
+import com.example.viby.playback.VolumeNormalization;
 import com.example.viby.ui.widget.EqualizerCurveView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -60,6 +61,7 @@ public class EqualizerActivity extends AppCompatActivity {
         savePresetButton = findViewById(R.id.savePresetButton);
         eqSwitch = findViewById(R.id.eqSwitch);
         unavailable = findViewById(R.id.eqUnavailable);
+        setUpNormalization();
     }
 
     @Override
@@ -67,6 +69,75 @@ public class EqualizerActivity extends AppCompatActivity {
         super.onResume();
         availabilityRetries = 0;
         checkAvailability();
+        refreshNormalizationStatus();
+    }
+
+    // ---------------------------------------------------------- normalization
+
+    private static final VolumeNormalization.Level[] LEVELS = VolumeNormalization.Level.values();
+    private static final int[] LEVEL_LABELS = {
+            R.string.normalization_level_quiet,
+            R.string.normalization_level_normal,
+            R.string.normalization_level_loud,
+    };
+
+    private MaterialSwitch normalizationSwitch;
+    private Button normalizationLevel;
+    private TextView normalizationStatus;
+
+    private void setUpNormalization() {
+        normalizationSwitch = findViewById(R.id.normalizationSwitch);
+        normalizationLevel = findViewById(R.id.normalizationLevel);
+        normalizationStatus = findViewById(R.id.normalizationStatus);
+        normalizationSwitch.setChecked(VolumeNormalization.isEnabled(this));
+        normalizationSwitch.setOnCheckedChangeListener((button, checked) -> {
+            VolumeNormalization.setEnabled(this, checked);
+            refreshNormalizationStatus();
+        });
+        normalizationLevel.setOnClickListener(v -> {
+            String[] labels = new String[LEVELS.length];
+            for (int i = 0; i < LEVELS.length; i++) {
+                labels[i] = getString(LEVEL_LABELS[i]);
+            }
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.normalization_level_title)
+                    .setSingleChoiceItems(labels,
+                            VolumeNormalization.level(this).ordinal(), (dialog, which) -> {
+                                VolumeNormalization.setLevel(this, LEVELS[which]);
+                                refreshNormalizationStatus();
+                                dialog.dismiss();
+                            })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        });
+    }
+
+    private void refreshNormalizationStatus() {
+        boolean enabled = VolumeNormalization.isEnabled(this);
+        normalizationLevel.setText(LEVEL_LABELS[VolumeNormalization.level(this).ordinal()]);
+        normalizationLevel.setEnabled(enabled);
+        if (!enabled) {
+            normalizationStatus.setText(R.string.normalization_status_off);
+            return;
+        }
+        com.example.viby.data.VibyDatabase.dbExecutor.execute(() -> {
+            com.example.viby.data.TrackDao dao =
+                    com.example.viby.data.VibyDatabase.get(this).trackDao();
+            int total = dao.countDownloadedFiles();
+            int scanned = dao.countLoudnessScannedFiles();
+            boolean charging = com.example.viby.playback.LoudnessScanner.isCharging(this);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                normalizationStatus.setText(scanned >= total
+                        ? getString(R.string.normalization_status_done, total)
+                        : getString(charging
+                                ? R.string.normalization_status
+                                : R.string.normalization_status_waiting, scanned, total));
+            });
+        });
+        com.example.viby.playback.LoudnessScanner.requestScan(this);
     }
 
     @Override

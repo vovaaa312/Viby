@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Database(entities = {Track.class, PlaylistSource.class, PendingDownload.class},
-        version = 9, exportSchema = false)
+        version = 11, exportSchema = false)
 public abstract class VibyDatabase extends RoomDatabase {
 
     private static volatile VibyDatabase instance;
@@ -131,6 +131,26 @@ public abstract class VibyDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_9_10 = new Migration(9, 10) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `loudnessLufs` REAL");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `loudnessPeak` REAL");
+            db.execSQL("ALTER TABLE `tracks` ADD COLUMN `loudnessScanned` "
+                    + "INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
+    /**
+     * No schema change. Version 11 briefly renamed existing radios on a test device; that
+     * was dropped, but the version stays so that device does not see a downgrade.
+     */
+    static final Migration MIGRATION_10_11 = new Migration(10, 11) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+        }
+    };
+
     public static VibyDatabase get(Context context) {
         if (instance == null) {
             synchronized (VibyDatabase.class) {
@@ -141,7 +161,8 @@ public abstract class VibyDatabase extends RoomDatabase {
                                     "viby.db")
                             .addMigrations(MIGRATION_1_2, MIGRATION_2_3,
                                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                                    MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                                    MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+                                    MIGRATION_9_10, MIGRATION_10_11)
                             .build();
                 }
             }

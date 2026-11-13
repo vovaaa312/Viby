@@ -72,6 +72,7 @@ dependencies {
     implementation libs.recyclerview
     implementation libs.viewpager2
     implementation libs.drawerlayout
+    implementation libs.preference
     implementation libs.lifecycle.livedata
     implementation libs.lifecycle.viewmodel
 

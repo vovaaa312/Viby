@@ -6,24 +6,43 @@
     android:orientation="vertical">
 
     <!-- Поиск по трекам, закреплён сверху -->
-    <EditText
-        android:id="@+id/searchInput"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="12dp"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="4dp"
-        android:background="@drawable/bg_search"
-        android:drawableStart="@drawable/ic_search"
-        android:drawablePadding="10dp"
-        android:hint="@string/search_hint"
-        android:imeOptions="actionSearch"
-        android:importantForAutofill="no"
-        android:inputType="text"
-        android:maxLines="1"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="10dp"
-        android:textAppearance="?attr/textAppearanceBodyMedium" />
+        android:focusable="true"
+        android:focusableInTouchMode="true">
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_search"
+            android:drawableStart="@drawable/ic_search"
+            android:drawablePadding="10dp"
+            android:hint="@string/search_hint"
+            android:imeOptions="actionSearch"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:maxLines="1"
+            android:paddingVertical="10dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="48dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+        <!-- clears the query and hides the keyboard -->
+        <ImageButton
+            android:id="@+id/searchClear"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="end|center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/search_clear"
+            android:src="@drawable/ic_close"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <!-- Панель режима множественного выбора -->
     <LinearLayout

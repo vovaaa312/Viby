@@ -143,6 +143,7 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
         view.findViewById(R.id.addTracks).setOnClickListener(v -> showAddTracksDialog());
 
         android.widget.EditText searchInput = view.findViewById(R.id.searchInput);
+        android.view.View searchClear = view.findViewById(R.id.searchClear);
         searchInput.addTextChangedListener(new android.text.TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -155,7 +156,23 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
             @Override
             public void afterTextChanged(android.text.Editable s) {
                 adapter.setQuery(s.toString());
+                updateSearchClear(searchInput, searchClear);
             }
+        });
+        // the cross shows while typing or while there is a query: one tap clears the
+        // query and puts the keyboard away
+        searchInput.setOnFocusChangeListener((v, hasFocus) ->
+                updateSearchClear(searchInput, searchClear));
+        searchClear.setOnClickListener(v -> {
+            searchInput.setText("");
+            closeSearchKeyboard(searchInput);
+        });
+        searchInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                closeSearchKeyboard(searchInput); // results are already filtered
+                return true;
+            }
+            return false;
         });
 
         backCallback = new OnBackPressedCallback(false) {
@@ -325,6 +342,21 @@ public class QueueFragment extends Fragment implements TracksAdapter.Listener {
      * «Обновить плейлист»: заново читаем YouTube-плейлист, из которого он был
      * скачан, и докачиваем только новые треки (уже скачанные пропускаются).
      */
+    private static void updateSearchClear(android.widget.EditText input, View clear) {
+        boolean show = input.hasFocus() || input.length() > 0;
+        clear.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+
+    private static void closeSearchKeyboard(android.widget.EditText input) {
+        input.clearFocus();
+        android.view.inputmethod.InputMethodManager keyboard =
+                input.getContext().getSystemService(
+                        android.view.inputmethod.InputMethodManager.class);
+        if (keyboard != null) {
+            keyboard.hideSoftInputFromWindow(input.getWindowToken(), 0);
+        }
+    }
+
     private void refreshPlaylist() {
         String playlist = viewModel.getActivePlaylistName();
         if (playlist == null) {

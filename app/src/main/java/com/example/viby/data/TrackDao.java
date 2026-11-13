@@ -96,6 +96,23 @@ public interface TrackDao {
     @Query("UPDATE tracks SET album = :album, metadataScanned = 1 WHERE filePath = :filePath")
     void updateScannedMetadata(String filePath, String album);
 
+    @Query("SELECT * FROM tracks WHERE downloaded = 1 AND loudnessScanned = 0 "
+            + "AND filePath != '' ORDER BY lastPlayedAt DESC, id DESC LIMIT :limit")
+    List<Track> getLoudnessPendingSync(int limit);
+
+    /** Stores the measurement for every playlist row that shares the file. */
+    @Query("UPDATE tracks SET loudnessLufs = :lufs, loudnessPeak = :peak, "
+            + "loudnessScanned = 1 WHERE filePath = :filePath")
+    void updateLoudness(String filePath, Float lufs, Float peak);
+
+    @Query("SELECT COUNT(DISTINCT filePath) FROM tracks WHERE downloaded = 1 "
+            + "AND filePath != ''")
+    int countDownloadedFiles();
+
+    @Query("SELECT COUNT(DISTINCT filePath) FROM tracks WHERE downloaded = 1 "
+            + "AND filePath != '' AND loudnessScanned = 1")
+    int countLoudnessScannedFiles();
+
     @Query("UPDATE tracks SET filePath = :filePath, downloaded = 1, "
             + "downloadState = 'DOWNLOADED', downloadErrorCode = NULL, "
             + "downloadErrorMessage = NULL, downloadProgress = 100 WHERE id = :id")

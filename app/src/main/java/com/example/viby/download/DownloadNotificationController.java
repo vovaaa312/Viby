@@ -52,6 +52,23 @@ final class DownloadNotificationController {
 
     void postResult(DownloadJob job) {
         String text;
+        if (job.automatic) {
+            // a launch-time check speaks up only when it brought something new
+            if (job.newCount == 0 || job.status == DownloadJob.Status.FAILED) {
+                return;
+            }
+            text = service.getResources().getQuantityString(
+                    R.plurals.notif_auto_update_added, job.newCount, job.newCount);
+            manager.notify(resultIdSequence.getAndIncrement(),
+                    new NotificationCompat.Builder(service, VibyApp.CHANNEL_DOWNLOADS)
+                            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                            .setContentTitle(job.playlistName != null
+                                    ? job.playlistName : job.title)
+                            .setContentText(text)
+                            .setAutoCancel(true)
+                            .build());
+            return;
+        }
         switch (job.status) {
             case DONE:
             case COMPLETED_WITH_ERRORS:

@@ -129,6 +129,9 @@ public final class PlaylistTrackCopier {
         copy.playCount = source.playCount;
         copy.lastPlayedAt = source.lastPlayedAt;
         copy.metadataScanned = source.metadataScanned;
+        copy.loudnessLufs = source.loudnessLufs;
+        copy.loudnessPeak = source.loudnessPeak;
+        copy.loudnessScanned = source.loudnessScanned;
         copy.addedInViby = true; // keeps its top slot when the YouTube order is re-applied
         return copy;
     }

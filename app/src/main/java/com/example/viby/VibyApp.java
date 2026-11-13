@@ -49,6 +49,18 @@ public class VibyApp extends Application {
         // partial files of downloads abandoned days ago and album tags of new files
         com.example.viby.library.LibraryMaintenance.cleanStaleTempFilesAsync(this);
         com.example.viby.library.LibraryMaintenance.scanMetadataAsync(this);
+        com.example.viby.playback.LoudnessScanner.requestScan(this);
+        // the library backlog is measured only while charging, so start when the cable goes in
+        androidx.core.content.ContextCompat.registerReceiver(this,
+                new android.content.BroadcastReceiver() {
+                    @Override
+                    public void onReceive(android.content.Context context,
+                                          android.content.Intent intent) {
+                        com.example.viby.playback.LoudnessScanner.requestScan(context);
+                    }
+                },
+                new android.content.IntentFilter(android.content.Intent.ACTION_POWER_CONNECTED),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     public LiveData<EngineState> getEngineState() {

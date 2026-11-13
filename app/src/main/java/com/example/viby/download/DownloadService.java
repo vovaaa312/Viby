@@ -70,6 +70,7 @@ public class DownloadService extends Service {
     public static final String EXTRA_TARGET_TRACK_ID = "target_track_id";
     private static final String EXTRA_QUEUE_POSITION = "queue_position";
     private static final String EXTRA_PAUSED = "paused";
+    private static final String EXTRA_AUTOMATIC = "automatic";
     private static final String EXTRA_TRACK_ORDER = "track_order";
 
     private static final int ENGINE_WAIT_SECONDS = 60;
@@ -94,6 +95,17 @@ public class DownloadService extends Service {
                 .putExtra(EXTRA_URL, url)
                 .putExtra(EXTRA_PLAYLIST, playlist)
                 .putExtra(EXTRA_IS_PLAYLIST, isPlaylist);
+        ContextCompat.startForegroundService(context, intent);
+    }
+
+    /** Quietly re-reads a YouTube playlist and downloads only what was added there. */
+    public static void enqueueAutomaticRefresh(Context context, String url, String playlist) {
+        Intent intent = new Intent(context, DownloadService.class)
+                .setAction(ACTION_ENQUEUE)
+                .putExtra(EXTRA_URL, url)
+                .putExtra(EXTRA_PLAYLIST, playlist)
+                .putExtra(EXTRA_IS_PLAYLIST, true)
+                .putExtra(EXTRA_AUTOMATIC, true);
         ContextCompat.startForegroundService(context, intent);
     }
 
@@ -300,6 +312,7 @@ public class DownloadService extends Service {
                                 url, playlist, isPlaylist, pendingId,
                                 restoredPosition, restoredPaused, restoredTrackOrder,
                                 DownloadScheduler.nextQueuePosition(jobs));
+                        job.automatic = intent.getBooleanExtra(EXTRA_AUTOMATIC, false);
                         jobs.add(job);
                         DownloadScheduler.sort(jobs);
                     }
@@ -406,6 +419,7 @@ public class DownloadService extends Service {
                 } else if (job.status == DownloadJob.Status.DONE
                         || job.status == DownloadJob.Status.COMPLETED_WITH_ERRORS) {
                     LibraryMaintenance.requestAutoSync(this);
+                    com.example.viby.playback.LoudnessScanner.requestScan(this);
                 }
                 notificationController.postResult(job);
             }
@@ -604,6 +618,7 @@ public class DownloadService extends Service {
                         item.youtubePosition);
                 item.progress = 100;
                 item.status = DownloadJob.TrackItem.Status.DOWNLOADED;
+                job.newCount++;
             } catch (Exception e) {
                 if (job.cancelRequested) {
                     item.status = DownloadJob.TrackItem.Status.WAITING;
@@ -713,6 +728,14 @@ public class DownloadService extends Service {
                     continue;
                 }
                 Track existing = dao.getByVideoIdSync(playlist, item.videoId);
+                if (job.automatic && existing != null
+                        && Track.DOWNLOAD_FAILED_PERMANENT.equals(existing.downloadState)) {
+                    // removed, private or blocked: retrying at every launch would only fail
+                    item.status = DownloadJob.TrackItem.Status.FAILED_PERMANENT;
+                    item.failureCode = existing.downloadErrorCode;
+                    item.failureMessage = existing.downloadErrorMessage;
+                    continue;
+                }
                 if (existing != null) {
                     existing.title = item.title;
                     existing.uploader = item.uploader;
@@ -981,10 +1004,12 @@ public class DownloadService extends Service {
             baseName = baseName + " [" + videoId + "]";
         }
 
+        String primary = DownloadSettings.format(this).extension;
+        String fallback = DownloadSettings.format(this).fallback().extension;
         File resultFile;
         try {
-            item.selectedFormat = "mp3";
-            resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName, "mp3", null);
+            item.selectedFormat = primary;
+            resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName, primary, null);
         } catch (Exception e) {
             if (job.cancelRequested || job.pauseRequested || job.pauseInterrupted
                     || job.yieldInterrupted || e instanceof JobPausedException
@@ -1003,9 +1028,9 @@ public class DownloadService extends Service {
             }
             Log.w(TAG, "retrying with alternate player clients: " + title, e);
             try {
-                item.selectedFormat = "mp3";
+                item.selectedFormat = primary;
                 resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName,
-                        "mp3", ALT_PLAYER_CLIENTS);
+                        primary, ALT_PLAYER_CLIENTS);
             } catch (Exception e2) {
                 if (job.cancelRequested || job.pauseRequested || job.pauseInterrupted
                         || job.yieldInterrupted || e2 instanceof JobPausedException
@@ -1013,10 +1038,10 @@ public class DownloadService extends Service {
                     throw e2;
                 }
                 // последний шанс: другой контейнер + альтернативные клиенты
-                Log.w(TAG, "mp3 failed, retrying as m4a: " + title, e2);
-                item.selectedFormat = "m4a";
+                Log.w(TAG, primary + " failed, retrying as " + fallback + ": " + title, e2);
+                item.selectedFormat = fallback;
                 resultFile = downloadWithPauseRetry(job, videoUrl, dir, baseName,
-                        "m4a", ALT_PLAYER_CLIENTS);
+                        fallback, ALT_PLAYER_CLIENTS);
             }
         }
 
@@ -1185,8 +1210,10 @@ public class DownloadService extends Service {
         String processId = "job-" + job.id;
         activeProcessId = processId;
         try {
+            String audioQuality = DownloadSettings.audioQuality(
+                    format, DownloadSettings.mp3Quality(this));
             return audioDownloader.download(
-                    videoUrl, dir, baseName, format, playerClients, processId,
+                    videoUrl, dir, baseName, format, audioQuality, playerClients, processId,
                     (progress, etaSeconds, line) -> {
                         job.progress = DownloadProgressParser.resolve(
                                 job.progress, progress, line);
